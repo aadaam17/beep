@@ -1,6 +1,11 @@
 import shlex
 from state import AppState, Mode
-from commands import auth, feed, post, profile, follow, chat, room, moderation, help
+from commands import auth, feed, post, profile, follow, chat, room, moderation, help, sync, node
+from commands.sync import SyncCommand
+
+from network.peers import add_peer
+from network.sync import sync
+from network.node import run_node
 
 state = AppState()
 
@@ -15,6 +20,8 @@ COMMAND_MODULES = {
     "feed": ["fyp", "next", "hold", "resume"],
     "moderation": ["mute", "unmute", "kick", "mod", "unmod"],
     "help": ["help"],
+    "sync": ["sync"],
+    "node": ["node"],
 }
 
 MODULE_DISPATCH = {
@@ -27,6 +34,8 @@ MODULE_DISPATCH = {
     "feed": feed.dispatch,
     "moderation": moderation.dispatch,
     "help": help.dispatch,
+    "sync": SyncCommand.dispatch,
+    "node": node.dispatch,
 }
 
 COMMAND_TO_MODULE = {cmd: module for module, cmds in COMMAND_MODULES.items() for cmd in cmds}
@@ -67,6 +76,35 @@ def main_loop():
 
             cmd_name = parts[0]
             args = " ".join(parts[1:]) if len(parts) > 1 else ""
+
+            # --- SYSTEM LAYER (peer / sync / node) ---
+            if cmd_name == "peer":
+                if len(parts) >= 3 and parts[1] == "add":
+                    add_peer(parts[2])
+                    print("peer added")
+                else:
+                    print("Usage: beep peer add <peer_id>")
+                continue
+
+            elif cmd_name == "sync":
+                sync()
+                print("sync complete")
+                continue
+
+            elif cmd_name == "node":
+                if len(parts) >= 2 and parts[1] == "run":
+                    port = 8000
+                    if "--port" in parts:
+                        try:
+                            port_index = parts.index("--port") + 1
+                            port = int(parts[port_index])
+                        except:
+                            print("Invalid port. Using default 8000")
+
+                    run_node(port=port)
+                else:
+                    print("Usage: beep node run --port <port>")
+                continue
 
             # --- Route 'say' based on mode ---
             if cmd_name == "say":

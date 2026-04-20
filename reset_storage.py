@@ -2,7 +2,7 @@ from pathlib import Path
 import shutil
 
 STORAGE_DIR = Path.home() / ".beep_storage"
-SUBFOLDERS = ["users", "profiles", "posts", "rooms", "chats"]
+SUBFOLDERS = ["users", "profiles", "posts", "rooms", "chats", "objects", "signing"]
 
 # Delete contents of each folder
 for sub in SUBFOLDERS:

@@ -1,74 +1,63 @@
-# commands/profile.py
-
-from storage.fs import BeepFS
+from core.identity import resolve_username
+from storage.objects import query_objects
 from storage.profile import get_user
 
-fs = BeepFS()
 
 def dispatch(cmd, args, state):
-    """
-    Handles profile command.
-
-    Usage:
-      beep profile                 -> shows your profile
-      beep profile <username>      -> shows another user's profile
-      beep profile --posts         -> shows your posts (with nested comments/quotes)
-      beep profile <username> --shared -> shows their shared posts
-    """
     parts = args.split() if args else []
 
     show_posts = "--posts" in parts
     show_shared = "--shared" in parts
 
-    # Determine the username
-    uname = None
-    for p in parts:
-        if not p.startswith("--"):
-            uname = p
-    uname = uname or state.user or "demo"
+    username = next((part for part in parts if not part.startswith("--")), None)
+    username = username or state.user
 
-    # Load profile
-    profile_data = get_user(uname)
+    if not username:
+        print("[PROFILE] No user selected. Log in or pass a username.")
+        return
 
-    # Print basic profile info
-    print(f"\nProfile: {uname}")
-    print(f"Followers: {len(profile_data.get('followers', []))}")
-    print(f"Following: {len(profile_data.get('following', []))}")
-    print(f"Posts: {len(profile_data.get('posts', []))}")
-    print(f"Shared: {len(profile_data.get('shared', []))}\n")
+    profile_data = get_user(username)
+    if not profile_data:
+        print(f"[PROFILE] User '{username}' not found")
+        return
 
-    # --- Recursive display for nested comments/quotes ---
-    def display_post(post_id, indent=0):
-        data = fs.read_post(post_id)
-        status = "[deleted]" if data.get("revoked") else ""
-        prefix = "    " * indent
-        print(f"{prefix}- {post_id} {status}: {data['content'][:50]}")
+    followers = [resolve_username(pubkey) for pubkey in profile_data.get("followers", [])]
+    following = [resolve_username(pubkey) for pubkey in profile_data.get("following", [])]
 
-        # Children: all posts where shared_from == post_id
-        all_posts = fs.list_posts()  # global list of all posts
-        children = [p for p in all_posts if fs.read_post(p).get("shared_from") == post_id]
-        for child_id in children:
-            display_post(child_id, indent=indent+1)
+    authored = query_objects(author=profile_data["pubkey"])
+    posts = [obj for obj in authored if obj["type"] == "post"]
+    shared = [obj for obj in authored if obj["type"] in {"share", "quote"}]
 
-    # --- Show user posts if requested ---
+    print(f"\nProfile: {username}")
+    print(f"Followers: {len(followers)}")
+    print(f"Following: {len(following)}")
+    print(f"Posts: {len(posts)}")
+    print(f"Shared: {len(shared)}")
+
+    if "--followers" in parts and followers:
+        print("Follower list:")
+        for follower in followers:
+            print(f" - {follower}")
+
+    if "--following" in parts and following:
+        print("Following list:")
+        for followed in following:
+            print(f" - {followed}")
+
     if show_posts:
-        posts = fs.list_user_posts(uname)
-        print("Posts:")
+        print("\nPosts:")
         if not posts:
             print("  No posts yet.")
         else:
-            top_posts = [p for p in posts if fs.read_post(p).get("shared_from") is None]
-            for post_id in top_posts:
-                display_post(post_id)
+            for obj in posts:
+                print(f" - {obj['id']}: {obj['content']}")
 
-    # --- Show shared posts if requested ---
     if show_shared:
-        shared = fs.list_user_shared(uname)
         print("\nShared posts:")
         if not shared:
             print("  No shared posts yet.")
         else:
-            for post_id in shared:
-                display_post(post_id)
+            for obj in shared:
+                print(f" - {obj['id']}: {obj['content']}")
 
-    print("")  # extra newline for readability
+    print()

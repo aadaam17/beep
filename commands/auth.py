@@ -33,6 +33,7 @@ def dispatch(cmd, args, state):
             username_clean = username.lower()  # lowercase for storage
             user = profile.create_user(username_clean, password)
             state.user = user["username"]
+            state.pubkey = user["pubkey"]
             print(f"[AUTH] User '{username_clean}' registered successfully!")
 
         elif cmd == "login":
@@ -43,12 +44,14 @@ def dispatch(cmd, args, state):
             username_clean = username.lower()  # lowercase for lookup
             user = profile.authenticate(username_clean, password)
             state.user = user["username"]
+            state.pubkey = user["pubkey"]
             print(f"[AUTH] User '{username_clean}' logged in successfully!")
 
         elif cmd == "logout":
             if state.user:
                 print(f"[AUTH] User '{state.user}' logged out.")
                 state.user = None
+                state.pubkey = None
             else:
                 print("[AUTH] No user currently logged in.")
 

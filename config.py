@@ -1,0 +1,4 @@
+APP_NAME = "Beep CLI"
+VERSION = "0.1"
+DEFAULT_USER_DIR = "~/.beep"
+POST_PAGE_SIZE = 10

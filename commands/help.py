@@ -1,69 +1,72 @@
 def dispatch(cmd, args, state):
-    print("""
-Beep — Anonymous CLI Social Network
+    print(
+        """
+Beep - Anonymous CLI Social Network
 ==================================
 
 Note:
-  • Always prefix commands with `beep`
-  • Example: beep post "hello world"
+  - Always prefix commands with `beep`
+  - Example: beep post "hello world"
 
--- Identity & Session --
-  register -u <username> -p <password>   Create local identity (generates keys)
-  login  -u <username> -p <password>   Unlock identity
-  logout                               Lock identity
+Identity & Session
+  register -u <username> -p <password>   Create local identity
+  login -u <username> -p <password>      Unlock identity
+  logout                                 Lock identity
 
--- Feed (FYP) --
-  fyp global                            Switch to global feed (default)
-  fyp followed                          Switch to followed feed
-  next                                  Load next posts
-  hold                                  Pause auto-loading
-  resume                                Resume auto-loading
+Feed
+  fyp global                             Switch to global feed
+  fyp followed                           Switch to followed feed
+  next                                   Load next posts
+  hold                                   Pause feed paging
+  resume                                 Resume feed paging
 
--- Posts --
-  post "content"                        Create a post
-  comment <post_id> "comment"           Comment on a post
-  share <post_id>                       Share a post (reference)
-  quote <post_id> "text"                Quote a post (new post)
-  delete <post_id>                      Delete your post
+Posts
+  post "content"                         Create a post
+  comment <post_id> "comment"            Comment on a post
+  share <post_id>                        Share a post
+  quote <post_id> "text"                 Quote a post
+  delete <post_id>                       Reserved for future tombstones
 
--- Profile --
-  profile                               View your profile
-  profile <username>                    View another profile
-  profile --followers                   Show list of followers
-  profile --following                   Show list of following
-  profile --posts                       Show posts only
-  profile --shared                      Show shared posts only
+Profile
+  profile                                View your profile
+  profile <username>                     View another profile
+  profile --followers                    Show followers
+  profile --following                    Show following
+  profile --posts                        Show authored posts
+  profile --shared                       Show shared and quoted posts
 
--- Follow --
-  follow <username>                     Follow a user
-  unfollow <username>                   Unfollow a user
+Follow
+  follow <username>                      Follow a user
+  unfollow <username>                    Unfollow a user
 
--- Chat --
-  chat                                  List chats
-  chat <username>                       Enter direct chat or room
-  say "message"                         Send message (chat mode)
-  read [--all | <number>]               Read messages
-  exit                                  Leave chat / return to feed
+Chat
+  chat                                   List chats
+  chat <username>                        Enter direct chat
+  say "message"                          Send message in chat or room
+  read [--all | <number>]                Read chat messages
+  exit                                   Leave current chat
 
--- Rooms --
-  room                                  List rooms
-  room <name> [--private] [--ephemeral] Create a room
-  say "message"                         Send message (room mode)
-  late [--all | <number>]               Read room messages
-  join <name>                           Join a room
-  invite <username>                     Invite user to private room
-  leave                                 Leave chat / return to fe
-  ed
+Rooms
+  room                                   List rooms
+  room <name> [--private] [--ephemeral]  Create a room
+  join <name>                            Join a room
+  invite <username>                      Invite a user
+  late [--all | <number>]                Read room messages
+  leave                                  Leave current room
 
--- Moderation (Room Owner and Moderators) --
-  mute <username>                       Mute a user
-  unmute <username>                     Unmute a user
-  kick <username>                       Remove user from room
+Moderation
+  mute <username>                        Mute a user
+  unmute <username>                      Unmute a user
+  kick <username>                        Remove a user from a room
+  mod <username>                         Make a member a moderator
+  unmod <username>                       Remove moderator status
 
--- Mod (Exclusive to Room Owner)--
-  mod <username>                        Make a member a moderator
-  unmod <username>                      Remove a member from moderator
+Node
+  peer add <url>                         Add a peer
+  sync                                   Synchronize objects with peers
+  node run [--host <host>] [--port <p>]  Run local node
 
--- Help --
-  help                                  Show this help
-""")
+Help
+  help                                   Show this help
+"""
+    )

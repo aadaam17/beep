@@ -10,11 +10,14 @@ class Mode(Enum):
 class AppState:
     def __init__(self):
         self.user = None
+        self.pubkey = None
         self.mode = Mode.GLOBAL_FYP
         self.fyp_type = "global"
         self.current_chat = None
         self.current_room = None
         self.hold = False
+
+        self.peers = []
 
     def switch_fyp(self, fyp):
         if fyp not in ["global", "followed"]:
