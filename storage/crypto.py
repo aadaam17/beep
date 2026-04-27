@@ -1,96 +1,10 @@
-# from cryptography.hazmat.primitives.asymmetric import rsa, padding
-# from cryptography.hazmat.primitives import serialization, hashes
-# from pathlib import Path
+import os
 
-# USER_DIR = Path.home() / ".beep_storage/users"
-# USER_DIR.mkdir(exist_ok=True)
-
-# def load_or_create_keys(username):
-#     """
-#     Returns (private_key, public_key) for a given username.
-#     Generates a new key pair if not exists.
-#     """
-#     priv_file = USER_DIR / f"{username}_priv.pem"
-#     pub_file = USER_DIR / f"{username}_pub.pem"
-
-#     if priv_file.exists() and pub_file.exists():
-#         # Load existing keys
-#         private_key = serialization.load_pem_private_key(
-#             priv_file.read_bytes(),
-#             password=None
-#         )
-#         public_key = serialization.load_pem_public_key(pub_file.read_bytes())
-#     else:
-#         # Generate new keys
-#         private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-#         public_key = private_key.public_key()
-
-#         # Save keys
-#         priv_file.write_bytes(
-#             private_key.private_bytes(
-#                 encoding=serialization.Encoding.PEM,
-#                 format=serialization.PrivateFormat.PKCS8,
-#                 encryption_algorithm=serialization.NoEncryption()
-#             )
-#         )
-#         pub_file.write_bytes(
-#             public_key.public_bytes(
-#                 encoding=serialization.Encoding.PEM,
-#                 format=serialization.PublicFormat.SubjectPublicKeyInfo
-#             )
-#         )
-
-#     return private_key, public_key
-
-
-# from pathlib import Path
-# from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-# from cryptography.hazmat.primitives import serialization
-
-# USER_DIR = Path.home() / ".beep_storage/users"
-# USER_DIR.mkdir(exist_ok=True)
-
-
-# def load_or_create_keys(username):
-#     priv_file = USER_DIR / f"{username}_priv.key"
-
-#     if priv_file.exists():
-#         private_key = Ed25519PrivateKey.from_private_bytes(priv_file.read_bytes())
-#     else:
-#         private_key = Ed25519PrivateKey.generate()
-#         priv_file.write_bytes(
-#             private_key.private_bytes(
-#                 encoding=serialization.Encoding.Raw,
-#                 format=serialization.PrivateFormat.Raw,
-#                 encryption_algorithm=serialization.NoEncryption()
-#             )
-#         )
-
-#     public_key = private_key.public_key()
-
-#     return private_key, public_key
-
-# def generate_keys():
-#     priv = Ed25519PrivateKey.generate()
-#     pub = priv.public_key()
-
-#     return priv, pub
-
-
-# def sign_message(private_key, message: str) -> str:
-#     signature = private_key.sign(message.encode())
-#     return signature.hex()
-
-
-# def pubkey_to_str(pubkey):
-#     return pubkey.public_bytes(
-#         encoding=serialization.Encoding.Raw,
-#         format=serialization.PublicFormat.Raw
-#     ).hex()
-
-
-from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives import serialization, hashes
+from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
 
 from crypto.keys import load_or_create_keys as _rsa_keys
 from crypto.sign import (
@@ -98,10 +12,8 @@ from crypto.sign import (
     sign_message as _sign_message,
 )
 
-# ---------------------------
-# ENCRYPTION KEYS (RSA)
-# ---------------------------
 
+# --- ENCRYPTION KEYS (RSA) ---
 def load_or_create_keys(username):
 
     return _rsa_keys(username)
@@ -112,19 +24,13 @@ def generate_keys():
     return _rsa_keys("temp_user")
 
 
-# ---------------------------
-# SIGNING (Ed25519)
-# ---------------------------
-
+# --- SIGNING (Ed25519) ---
 def sign_message(private_key, message: str) -> str:
 
     return _sign_message(private_key, message)
 
 
-# ---------------------------
-# SERIALIZATION (UNCHANGED)
-# ---------------------------
-
+# --- SERIALIZATION ---
 def pubkey_to_str(pubkey):
     if isinstance(pubkey, Ed25519PublicKey):
         return pubkey.public_bytes(
@@ -136,3 +42,65 @@ def pubkey_to_str(pubkey):
         encoding=serialization.Encoding.PEM,
         format=serialization.PublicFormat.SubjectPublicKeyInfo,
     ).hex()
+
+
+def encryption_pubkey_to_str(pubkey):
+    return pubkey.public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo,
+    ).hex()
+
+
+def load_encryption_public_key(pubkey_hex):
+    return serialization.load_pem_public_key(bytes.fromhex(pubkey_hex))
+
+
+def encrypt_for_recipients(message: str, recipient_pubkeys: dict[str, dict]) -> dict:
+    aes_key = AESGCM.generate_key(bit_length=256)
+    nonce = os.urandom(12)
+    aesgcm = AESGCM(aes_key)
+    ciphertext = aesgcm.encrypt(nonce, message.encode("utf-8"), None)
+
+    encrypted_keys = []
+    for recipient_info in recipient_pubkeys.values():
+        public_key = load_encryption_public_key(recipient_info["rsa_pubkey"])
+        encrypted_key = public_key.encrypt(
+            aes_key,
+            padding.OAEP(
+                mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                algorithm=hashes.SHA256(),
+                label=None,
+            ),
+        )
+        encrypted_keys.append(
+            {
+                "key": encrypted_key.hex(),
+                "key_id": recipient_info.get("rsa_fingerprint"),
+            }
+        )
+
+    return {
+        "nonce": nonce.hex(),
+        "ciphertext": ciphertext.hex(),
+        "keys": encrypted_keys,
+    }
+
+
+def decrypt_from_envelope(private_key, envelope: dict) -> str:
+    encrypted_key = bytes.fromhex(envelope["key"])
+    aes_key = private_key.decrypt(
+        encrypted_key,
+        padding.OAEP(
+            mgf=padding.MGF1(algorithm=hashes.SHA256()),
+            algorithm=hashes.SHA256(),
+            label=None,
+        ),
+    )
+
+    aesgcm = AESGCM(aes_key)
+    plaintext = aesgcm.decrypt(
+        bytes.fromhex(envelope["nonce"]),
+        bytes.fromhex(envelope["ciphertext"]),
+        None,
+    )
+    return plaintext.decode("utf-8")

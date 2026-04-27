@@ -3,11 +3,12 @@ from pathlib import Path
 import hashlib
 import uuid
 
-from storage.crypto import pubkey_to_str
+from storage.crypto import load_or_create_keys, pubkey_to_str, encryption_pubkey_to_str
 from crypto.sign import load_or_create_signing_keys
+from storage.objects import query_objects
 
 # Path to local user storage
-USER_STORAGE_FILE = Path.home() / ".beep_users.json"
+USER_STORAGE_FILE = Path.home() / ".beep" / "beep_users.json"
 
 
 def _normalize_pubkey(users):
@@ -26,10 +27,33 @@ def _normalize_pubkey(users):
         user["pubkey"] = new_pubkey
         changed = True
 
+        if "rsa_pubkey" not in user:
+            _, encryption_pub = load_or_create_keys(username)
+            user["rsa_pubkey"] = encryption_pubkey_to_str(encryption_pub)
+            user["rsa_fingerprint"] = _rsa_fingerprint(user["rsa_pubkey"])
+            changed = True
+        elif "rsa_fingerprint" not in user:
+            user["rsa_fingerprint"] = _rsa_fingerprint(user["rsa_pubkey"])
+            changed = True
+
+    for username, user in users.items():
+        if "rsa_pubkey" not in user:
+            _, encryption_pub = load_or_create_keys(username)
+            user["rsa_pubkey"] = encryption_pubkey_to_str(encryption_pub)
+            user["rsa_fingerprint"] = _rsa_fingerprint(user["rsa_pubkey"])
+            changed = True
+        elif "rsa_fingerprint" not in user:
+            user["rsa_fingerprint"] = _rsa_fingerprint(user["rsa_pubkey"])
+            changed = True
+
     if rewrites:
         for user in users.values():
-            user["followers"] = [rewrites.get(pubkey, pubkey) for pubkey in user.get("followers", [])]
-            user["following"] = [rewrites.get(pubkey, pubkey) for pubkey in user.get("following", [])]
+            user["followers"] = [
+                rewrites.get(pubkey, pubkey) for pubkey in user.get("followers", [])
+            ]
+            user["following"] = [
+                rewrites.get(pubkey, pubkey) for pubkey in user.get("following", [])
+            ]
 
     return changed
 
@@ -56,24 +80,6 @@ def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
 
-# Create a new user
-# def create_user(username, password):
-#     users = load_users()
-#     if username in users:
-#         raise ValueError(f"Username '{username}' already exists")
-
-#     users[username] = {
-#         "id": str(uuid.uuid4()),  # unique user ID
-#         "username": username,
-#         "password": hash_password(password),
-#         "followers": [],
-#         "following": [],
-#         "posts": [],
-#         "shared": [],
-#     }
-#     save_users(users)
-#     return users[username]
-
 def create_user(username, password):
     users = load_users()
     if username in users:
@@ -81,19 +87,25 @@ def create_user(username, password):
 
     _, pub = load_or_create_signing_keys(username)
     pubkey = pubkey_to_str(pub)
+    _, encryption_pub = load_or_create_keys(username)
+    encryption_pubkey = encryption_pubkey_to_str(encryption_pub)
+    rsa_fingerprint = _rsa_fingerprint(encryption_pubkey)
 
     users[username] = {
         "id": str(uuid.uuid4()),
         "username": username,
         "pubkey": pubkey,
+        "rsa_pubkey": encryption_pubkey,
+        "rsa_fingerprint": rsa_fingerprint,
         "password": hash_password(password),
         "followers": [],
         "following": [],
         "posts": [],
-        "shared": []
+        "shared": [],
     }
 
     save_users(users)
+    _publish_profile(users[username])
     return users[username]
 
 
@@ -106,25 +118,37 @@ def authenticate(username, password):
         raise ValueError("Incorrect password")
     return users[username]
 
+
 # Get user by pubkey
 def get_user_by_pubkey(pubkey):
     users = load_users()
     for u in users.values():
         if u.get("pubkey") == pubkey:
             return u
+    remote = _get_remote_user_by_pubkey(pubkey)
+    if remote:
+        return remote
     return None
+
 
 def get_username_by_pubkey(pubkey):
     users = load_users()
     for username, u in users.items():
         if u.get("pubkey") == pubkey:
             return username
+    remote = _get_remote_user_by_pubkey(pubkey)
+    if remote:
+        return remote["username"]
     return None
+
 
 # Get user by username
 def get_user(username):
     users = load_users()
-    return users.get(username)
+    user = users.get(username)
+    if user:
+        return user
+    return _get_remote_user(username)
 
 
 # Update user data (posts, shared, followers)
@@ -132,8 +156,15 @@ def update_user(username, data):
     users = load_users()
     if username not in users:
         raise ValueError(f"Username '{username}' not found")
+    if "rsa_pubkey" not in users[username]:
+        _, encryption_pub = load_or_create_keys(username)
+        users[username]["rsa_pubkey"] = encryption_pubkey_to_str(encryption_pub)
+        users[username]["rsa_fingerprint"] = _rsa_fingerprint(users[username]["rsa_pubkey"])
+    elif "rsa_fingerprint" not in users[username]:
+        users[username]["rsa_fingerprint"] = _rsa_fingerprint(users[username]["rsa_pubkey"])
     users[username].update(data)
     save_users(users)
+    _publish_profile(users[username])
     return users[username]
 
 
@@ -143,12 +174,13 @@ def follow(user_a, user_b):
     ub = get_user_by_pubkey(user_b)
     if not ua or not ub:
         raise ValueError("One of the users does not exist")
-    if user_b not in ua["following"]:
-        ua["following"].append(user_b)
-    if user_a not in ub["followers"]:
-        ub["followers"].append(user_a)
-    update_user(ua["username"], ua)
-    update_user(ub["username"], ub)
+    _publish_follow_event(user_a, user_b, "follow")
+
+    if ua["username"] in load_users():
+        local = load_users()[ua["username"]]
+        if user_b not in local.get("following", []):
+            local.setdefault("following", []).append(user_b)
+            update_user(ua["username"], local)
 
 
 # Unfollow another user
@@ -159,15 +191,153 @@ def unfollow(user_a_pub, user_b_pub):
     if not ua or not ub:
         raise ValueError("One of the users does not exist")
 
-    if user_b_pub in ua.get("following", []):
-        ua["following"].remove(user_b_pub)
+    _publish_follow_event(user_a_pub, user_b_pub, "unfollow")
 
-    if user_a_pub in ub.get("followers", []):
-        ub["followers"].remove(user_a_pub)
+    if ua["username"] in load_users():
+        local = load_users()[ua["username"]]
+        if user_b_pub in local.get("following", []):
+            local["following"].remove(user_b_pub)
+            update_user(ua["username"], local)
 
-    # 🔥 FIX: resolve usernames before update
-    ua_name = get_username_by_pubkey(user_a_pub)
-    ub_name = get_username_by_pubkey(user_b_pub)
 
-    update_user(ua_name, ua)
-    update_user(ub_name, ub)
+def get_effective_following(pubkey):
+    following = set()
+
+    for obj in sorted(query_objects(obj_type="follow"), key=lambda item: item["timestamp"]):
+        meta = obj.get("meta", {})
+        if obj.get("author") != pubkey:
+            continue
+
+        target = meta.get("target")
+        if not target:
+            continue
+
+        if meta.get("action") == "follow":
+            following.add(target)
+        elif meta.get("action") == "unfollow":
+            following.discard(target)
+
+    return following
+
+
+def get_effective_followers(pubkey):
+    followers = set()
+
+    for obj in sorted(query_objects(obj_type="follow"), key=lambda item: item["timestamp"]):
+        meta = obj.get("meta", {})
+        if meta.get("target") != pubkey:
+            continue
+
+        actor = obj.get("author")
+        if not actor:
+            continue
+
+        if meta.get("action") == "follow":
+            followers.add(actor)
+        elif meta.get("action") == "unfollow":
+            followers.discard(actor)
+
+    return followers
+
+
+def is_following(actor_pubkey, target_pubkey):
+    return target_pubkey in get_effective_following(actor_pubkey)
+
+
+def get_encryption_pubkey(identifier):
+    user = get_user(identifier)
+    if not user:
+        user = get_user_by_pubkey(identifier)
+    if not user:
+        return None
+    return user.get("rsa_pubkey")
+
+
+def get_rsa_fingerprint(identifier):
+    user = get_user(identifier)
+    if not user:
+        user = get_user_by_pubkey(identifier)
+    if not user:
+        return None
+    fingerprint = user.get("rsa_fingerprint")
+    if fingerprint:
+        return fingerprint
+    if user.get("rsa_pubkey"):
+        return _rsa_fingerprint(user["rsa_pubkey"])
+    return None
+
+
+def _publish_profile(user):
+    from core.object import BeepObject
+    from storage.objects import save_object
+
+    obj = BeepObject.create_object(
+        type_="profile",
+        author_pubkey=user["pubkey"],
+        content=user["username"],
+        meta={
+            "username": user["username"],
+            "rsa_pubkey": user["rsa_pubkey"],
+            "rsa_fingerprint": user["rsa_fingerprint"],
+        },
+    )
+    save_object(obj.to_dict())
+
+
+def _get_remote_user(username):
+    for obj in query_objects(obj_type="profile"):
+        if (
+            obj.get("meta", {}).get("username") == username
+            or obj.get("content") == username
+        ):
+            return {
+                "id": obj["id"],
+                "username": username,
+                "pubkey": obj["author"],
+                "rsa_pubkey": obj.get("meta", {}).get("rsa_pubkey"),
+                "rsa_fingerprint": obj.get("meta", {}).get("rsa_fingerprint"),
+                "followers": [],
+                "following": [],
+                "posts": [],
+                "shared": [],
+            }
+    return None
+
+
+def _get_remote_user_by_pubkey(pubkey):
+    for obj in query_objects(obj_type="profile"):
+        if obj.get("author") == pubkey:
+            username = obj.get("meta", {}).get("username") or obj.get("content")
+            return {
+                "id": obj["id"],
+                "username": username,
+                "pubkey": pubkey,
+                "rsa_pubkey": obj.get("meta", {}).get("rsa_pubkey"),
+                "rsa_fingerprint": obj.get("meta", {}).get("rsa_fingerprint"),
+                "followers": [],
+                "following": [],
+                "posts": [],
+                "shared": [],
+            }
+    return None
+
+
+def _publish_follow_event(actor_pubkey, target_pubkey, action):
+    from core.object import BeepObject
+    from storage.objects import save_object
+
+    actor = get_user_by_pubkey(actor_pubkey)
+    if not actor:
+        raise ValueError("Actor does not exist")
+
+    obj = BeepObject.create_object(
+        type_="follow",
+        author_pubkey=actor_pubkey,
+        content=action,
+        meta={"action": action, "target": target_pubkey},
+    )
+    save_object(obj.to_dict())
+
+
+def _rsa_fingerprint(rsa_pubkey: str) -> str:
+    return hashlib.sha256(rsa_pubkey.encode("utf-8")).hexdigest()[:16]

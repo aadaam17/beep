@@ -23,9 +23,7 @@ class BeepObject:
     id: Optional[str] = None
     signature: Optional[str] = None
 
-    # ---------------------------
-    # Canonical serialization
-    # ---------------------------
+    # --- Canonical serialization ---
     def to_signable_dict(self) -> Dict[str, Any]:
         """
         ONLY fields that are part of hashing/signing.
@@ -48,9 +46,7 @@ class BeepObject:
             "signature": self.signature,
         }
 
-    # ---------------------------
-    # ID + signing enforcement
-    # ---------------------------
+    # --- ID + signing enforcement ---
     def build_id(self) -> "BeepObject":
         if self.id:
             return self
@@ -74,9 +70,7 @@ class BeepObject:
         """
         return self.build_id().sign(private_key)
 
-    # ---------------------------
-    # Factory (replaces create_object)
-    # ---------------------------
+    # --- Factory (replaces create_object) ---
     @staticmethod
     def create_object(type_: str, author_pubkey: str, content: str, timestamp: Optional[int] = None, meta=None):
         if meta is None:

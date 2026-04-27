@@ -1,4 +1,4 @@
-from storage.profile import follow, unfollow, get_user
+from storage.profile import follow, unfollow, get_user, get_effective_following, is_following
 
 
 def dispatch(cmd, args, state):
@@ -35,15 +35,21 @@ def dispatch(cmd, args, state):
     action = follow if cmd == "follow" else unfollow
 
     try:
+        already_following = is_following(state.pubkey, target_pubkey)
+        if cmd == "follow" and already_following:
+            print(f"[{cmd.upper()}] You are already following {target_username}")
+            return
+        if cmd == "unfollow" and not already_following:
+            print(f"[{cmd.upper()}] You are not following {target_username}")
+            return
+
         action(state.pubkey, target_pubkey)
 
-        # load updated profile (still indexed by username locally)
-        my_profile = get_user(state.user)
-
         verb = "now following" if cmd == "follow" else "unfollowed"
+        following_count = len(get_effective_following(state.pubkey))
 
         print(f"[{cmd.upper()}] You {verb} {target_username}")
-        print(f"[{cmd.upper()}] You now follow {len(my_profile['following'])} users")
+        print(f"[{cmd.upper()}] You now follow {following_count} users")
 
     except ValueError as e:
         print(f"[{cmd.upper()}] Error: {e}")

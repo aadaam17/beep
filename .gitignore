@@ -1,0 +1,7 @@
+# Python virtual environments
+venv/
+venv-wsl/
+
+__pycache__/
+*.pyc
+.pytest_cache/

@@ -7,7 +7,7 @@ class ObjectStore:
         self.index = ObjectIndex()
 
     def put(self, obj: dict):
-        if save_object(obj):
+        if save_object(obj, auto_push=False):
             self.index.index(obj)
         return obj["id"]
 

@@ -63,6 +63,8 @@ Moderation
 
 Node
   peer add <url>                         Add a peer
+  peer remove <url>                      Remove a peer
+  peer list                              Show configured peers
   sync                                   Synchronize objects with peers
   node run [--host <host>] [--port <p>]  Run local node
 

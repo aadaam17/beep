@@ -1,8 +1,7 @@
-from storage.profile import load_users
+from storage.profile import get_user_by_pubkey
 
 def resolve_username(pubkey):
-    users = load_users()
-    for u in users.values():
-        if u.get("pubkey") == pubkey:
-            return u["username"]
+    user = get_user_by_pubkey(pubkey)
+    if user:
+        return user["username"]
     return pubkey[:10]  # fallback

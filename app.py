@@ -3,7 +3,7 @@ from state import AppState, Mode
 from commands import auth, feed, post, profile, follow, chat, room, moderation, help, sync, node
 from commands.sync import SyncCommand
 
-from network.peers import add_peer
+from network.peers import add_peer, load_peers, remove_peer
 from network.sync import sync
 from network.node import run_node
 
@@ -44,6 +44,40 @@ COMMAND_TO_MODULE = {cmd: module for module, cmds in COMMAND_MODULES.items() for
 ROOM_COMMANDS = {"late", "invite"}
 MOD_COMMANDS = {"mute", "unmute", "kick", "mod", "unmod"}
 ROOM_ONLY = ROOM_COMMANDS.union(MOD_COMMANDS)
+AUTO_SYNC_BEFORE = {
+    "fyp",
+    "next",
+    "profile",
+    "chat",
+    "read",
+    "room",
+    "join",
+    "late",
+    "say",
+    "invite",
+    "mute",
+    "unmute",
+    "kick",
+    "mod",
+    "unmod",
+}
+AUTO_SYNC_AFTER = {
+    "register",
+    "login",
+    "post",
+    "comment",
+    "share",
+    "quote",
+    "follow",
+    "unfollow",
+    "say",
+    "invite",
+    "mute",
+    "unmute",
+    "kick",
+    "mod",
+    "unmod",
+}
 
 def get_prompt():
     if state.mode == Mode.CHAT and state.current_chat:
@@ -57,6 +91,8 @@ def get_prompt():
 
 def main_loop():
     print("Welcome to Beep CLI v0.2")
+    if state.user:
+        print(f"[AUTH] Restored session for '{state.user}'")
 
     while True:
         try:
@@ -77,13 +113,27 @@ def main_loop():
             cmd_name = parts[0]
             args = " ".join(parts[1:]) if len(parts) > 1 else ""
 
+            if cmd_name in AUTO_SYNC_BEFORE:
+                sync(verbose=False)
+
             # --- SYSTEM LAYER (peer / sync / node) ---
             if cmd_name == "peer":
                 if len(parts) >= 3 and parts[1] == "add":
-                    add_peer(parts[2])
-                    print("peer added")
+                    peer_url = add_peer(parts[2])
+                    print(f"peer added: {peer_url}")
+                elif len(parts) >= 3 and parts[1] == "remove":
+                    peer_url = remove_peer(parts[2])
+                    print(f"peer removed: {peer_url}")
+                elif len(parts) >= 2 and parts[1] == "list":
+                    peers = load_peers()
+                    if not peers:
+                        print("No peers configured.")
+                    else:
+                        print("Peers:")
+                        for peer in peers:
+                            print(f" - {peer}")
                 else:
-                    print("Usage: beep peer add <peer_id>")
+                    print("Usage: beep peer add <url> | beep peer remove <url> | beep peer list")
                 continue
 
             elif cmd_name == "sync":
@@ -141,6 +191,9 @@ def main_loop():
 
             # --- Dispatch normal commands ---
             MODULE_DISPATCH[module_name](cmd_name, args, state)
+
+            if cmd_name in AUTO_SYNC_AFTER:
+                sync(verbose=False)
 
         except KeyboardInterrupt:
             print("\nExiting Beep CLI. Bye!")

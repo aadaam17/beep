@@ -76,9 +76,13 @@ def dispatch(cmd, args, state):
 
         room_name = parts[0]
         try:
-            fs.join_room(room_name, user)
+            result = fs.join_room(room_name, user)
             state.enter_room(room_name)
-            print(f"Joined {room_name}")
+            if result == "already_member":
+                # print(f"Already in {room_name}")
+                pass
+            else:
+                print(f"Joined {room_name}")
         except PermissionError as e:
             print(f"Error: {e}")
         except ValueError as e:
@@ -139,8 +143,13 @@ def dispatch(cmd, args, state):
             return
 
         try:
-            fs.invite(state.current_room, target_user)
-            print(f"Invited {target_user}")
+            result = fs.invite(state.current_room, target_user, actor=user)
+            if result == "already_member":
+                print(f"{target_user} is already in the room")
+            elif result == "already_invited":
+                print(f"{target_user} already has a valid invite")
+            else:
+                print(f"Invited {target_user}")
         except ValueError as e:
             print(f"Error: {e}")
         except PermissionError as e:

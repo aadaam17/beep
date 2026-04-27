@@ -13,9 +13,7 @@ class SmartReplicator:
         self.peers = peers
         self.index = ObjectIndex()
 
-    # -------------------------
-    # MAIN ENTRY
-    # -------------------------
+    # --- Main Entry ---
     def sync(self, state):
         print("[SMART SYNC] Starting...")
 
@@ -29,9 +27,7 @@ class SmartReplicator:
 
         print("[SMART SYNC] Done")
 
-    # -------------------------
-    # SYNC ONE PEER
-    # -------------------------
+    # --- Sync One Peer ---
     def _sync_peer(self, peer, local_ids, state):
         print(f"[SMART SYNC] Checking {peer}")
 
@@ -60,9 +56,7 @@ class SmartReplicator:
             else:
                 print("[SMART SYNC] Rejected untrusted object")
 
-    # -------------------------
-    # RANKING LOGIC
-    # -------------------------
+    # --- Ranking Logic ---
     def _rank_objects(self, ids, meta, state):
         scored = []
 
@@ -83,7 +77,7 @@ class SmartReplicator:
                 score += 50
 
             # ---- TRUST PRIORITY ----
-            # (you can expand later)
+            # (Possibly expand later)
             if author:
                 score += 10
 
@@ -99,11 +93,9 @@ class SmartReplicator:
         scored.sort(reverse=True)
         return [obj_id for _, obj_id in scored]
 
-    # -------------------------
-    # STORE OBJECT
-    # -------------------------
+    # --- Store Object ---
     def _store_object(self, obj):
-        save_object(obj)
+        save_object(obj, auto_push=False)
         self.index.index(obj)
 
         name = resolve_username(obj["author"])

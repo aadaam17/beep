@@ -4,10 +4,9 @@ import json
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 
-from core.object import BeepObject
 from core.verify import verify_object
 
-STORAGE_DIR = Path.home() / ".beep_storage"
+STORAGE_DIR = Path.home() / ".beep" / "beep_storage"
 OBJECTS_DIR = STORAGE_DIR / "objects"
 
 OBJECTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -16,7 +15,7 @@ OBJECTS_DIR.mkdir(parents=True, exist_ok=True)
 def _path(obj_id: str) -> Path:
     return OBJECTS_DIR / f"{obj_id}.json"
 
-def save_object(obj):
+def save_object(obj, *, auto_push: bool = True):
     """
     Trust gate: nothing enters storage unless valid.
     """
@@ -25,16 +24,23 @@ def save_object(obj):
     if hasattr(obj, "to_dict"):
         obj = obj.to_dict()
 
-    # TRUST CHECK (CRITICAL)
+    # --- Trust Check ---
     if not verify_object(obj):
         print("[STORAGE] Rejected untrusted object")
         return False
 
     path = _path(obj["id"])
 
+    if path.exists():
+        return False
+
     with open(path, "w") as f:
         import json
         json.dump(obj, f, indent=2)
+
+    if auto_push:
+        from network.sync import push_object_to_peers
+        push_object_to_peers(obj)
 
     return True
 

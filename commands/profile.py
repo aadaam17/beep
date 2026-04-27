@@ -1,6 +1,6 @@
 from core.identity import resolve_username
 from storage.objects import query_objects
-from storage.profile import get_user
+from storage.profile import get_user, get_effective_followers, get_effective_following
 
 
 def dispatch(cmd, args, state):
@@ -21,8 +21,8 @@ def dispatch(cmd, args, state):
         print(f"[PROFILE] User '{username}' not found")
         return
 
-    followers = [resolve_username(pubkey) for pubkey in profile_data.get("followers", [])]
-    following = [resolve_username(pubkey) for pubkey in profile_data.get("following", [])]
+    followers = [resolve_username(pubkey) for pubkey in sorted(get_effective_followers(profile_data["pubkey"]))]
+    following = [resolve_username(pubkey) for pubkey in sorted(get_effective_following(profile_data["pubkey"]))]
 
     authored = query_objects(author=profile_data["pubkey"])
     posts = [obj for obj in authored if obj["type"] == "post"]

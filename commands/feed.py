@@ -3,7 +3,7 @@ from datetime import datetime
 from core.feed import get_all_posts, get_followed_posts
 from core.identity import resolve_username
 from storage.objects import query_objects
-from storage.profile import get_user
+from storage.profile import get_effective_following
 
 POSTS_PER_PAGE = 15
 
@@ -128,8 +128,7 @@ def _get_current_feed(state):
             print("[FYP] Login required. Showing global.")
             posts = get_all_posts()
         else:
-            user = get_user(state.user)
-            following = set(user.get("following", [])) if user else set()
+            following = get_effective_following(state.pubkey)
             posts = get_followed_posts(following)
     else:
         posts = get_all_posts()

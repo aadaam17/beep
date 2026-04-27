@@ -1,6 +1,7 @@
 import shlex
 import getpass
 from storage import profile
+from storage.session import save_session, clear_session
 
 def dispatch(cmd, args, state):
     parts = shlex.split(args)
@@ -34,6 +35,7 @@ def dispatch(cmd, args, state):
             user = profile.create_user(username_clean, password)
             state.user = user["username"]
             state.pubkey = user["pubkey"]
+            save_session(state.user, state.pubkey)
             print(f"[AUTH] User '{username_clean}' registered successfully!")
 
         elif cmd == "login":
@@ -43,8 +45,10 @@ def dispatch(cmd, args, state):
 
             username_clean = username.lower()  # lowercase for lookup
             user = profile.authenticate(username_clean, password)
+            user = profile.update_user(user["username"], user)
             state.user = user["username"]
             state.pubkey = user["pubkey"]
+            save_session(state.user, state.pubkey)
             print(f"[AUTH] User '{username_clean}' logged in successfully!")
 
         elif cmd == "logout":
@@ -52,6 +56,7 @@ def dispatch(cmd, args, state):
                 print(f"[AUTH] User '{state.user}' logged out.")
                 state.user = None
                 state.pubkey = None
+                clear_session()
             else:
                 print("[AUTH] No user currently logged in.")
 

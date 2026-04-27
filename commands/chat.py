@@ -19,17 +19,15 @@ def dispatch(cmd, args, state):
 
         # -------- LIST MY CHATS --------
         if not parts:
-            chats = fs.list_chats()
-            my_chats = [c for c in chats if user in c.split("__")]
+            chats = fs.list_chats(user)
 
-            if not my_chats:
+            if not chats:
                 print("No chats.")
                 return
 
             print("Chats:")
-            for c in my_chats:
-                other = c.replace(user, "").replace("__", "")
-                print(f" - {other}")
+            for chat_peer in chats:
+                print(f" - {chat_peer}")
             return
 
         target = parts[0]
@@ -45,13 +43,12 @@ def dispatch(cmd, args, state):
             return
 
         try:
-            # fs handles creation + validation
-            chat_name = fs.create_chat(None, user, target)
+            fs.create_chat(None, user, target)
         except ValueError as e:
             print(f"Error: {e}")
             return
 
-        state.enter_chat(chat_name)
+        state.enter_chat(target)
         print(f"Entered chat with {target}")
 
     # ================= SAY =================

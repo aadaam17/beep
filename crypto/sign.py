@@ -1,7 +1,7 @@
 from pathlib import Path
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
-SIGN_DIR = Path.home() / ".beep_storage/signing"
+SIGN_DIR = Path.home() / ".beep" / "beep_storage/signing"
 SIGN_DIR.mkdir(parents=True, exist_ok=True)
 
 

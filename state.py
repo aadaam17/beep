@@ -1,4 +1,6 @@
 from enum import Enum, auto
+from storage.session import load_session
+
 
 class Mode(Enum):
     GLOBAL_FYP = auto()
@@ -7,10 +9,12 @@ class Mode(Enum):
     ROOM = auto()
     PROFILE = auto()
 
+
 class AppState:
     def __init__(self):
-        self.user = None
-        self.pubkey = None
+        session = load_session()
+        self.user = session["username"] if session else None
+        self.pubkey = session["pubkey"] if session else None
         self.mode = Mode.GLOBAL_FYP
         self.fyp_type = "global"
         self.current_chat = None
