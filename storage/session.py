@@ -30,6 +30,13 @@ def load_session():
     }
 
 
+def session_matches(username, pubkey):
+    session = load_session()
+    if not session:
+        return False
+    return session.get("username") == username and session.get("pubkey") == pubkey
+
+
 def save_session(username, pubkey):
     SESSION_FILE.write_text(
         json.dumps(

@@ -12,9 +12,6 @@ class Mode(Enum):
 
 class AppState:
     def __init__(self):
-        session = load_session()
-        self.user = session["username"] if session else None
-        self.pubkey = session["pubkey"] if session else None
         self.mode = Mode.GLOBAL_FYP
         self.fyp_type = "global"
         self.current_chat = None
@@ -22,6 +19,34 @@ class AppState:
         self.hold = False
 
         self.peers = []
+        self.user = None
+        self.pubkey = None
+        self.apply_session(load_session())
+
+    def apply_session(self, session):
+        self.user = session["username"] if session else None
+        self.pubkey = session["pubkey"] if session else None
+
+    def refresh_session(self):
+        session = load_session()
+
+        if session:
+            if (
+                self.user != session["username"]
+                or self.pubkey != session["pubkey"]
+            ):
+                self.apply_session(session)
+                return "changed"
+            return "same"
+
+        if self.user or self.pubkey:
+            self.apply_session(None)
+            self.exit_chat()
+            self.exit_room()
+            self.exit_profile()
+            return "cleared"
+
+        return "none"
 
     def switch_fyp(self, fyp):
         if fyp not in ["global", "followed"]:

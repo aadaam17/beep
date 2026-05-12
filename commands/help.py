@@ -22,10 +22,11 @@ Feed
 
 Posts
   post "content"                         Create a post
-  comment <post_id> "comment"            Comment on a post
+  comment <object_id> "comment"          Reply to a post or comment
   share <post_id>                        Share a post
   quote <post_id> "text"                 Quote a post
   delete <post_id>                       Reserved for future tombstones
+  view <object_id>                       Show a post/comment thread by ID
 
 Profile
   profile                                View your profile
@@ -48,11 +49,14 @@ Chat
 
 Rooms
   room                                   List rooms
-  room <name> [--private] [--ephemeral]  Create a room
+  room <name> [--private] [--ephemeral <ttl>]  Create a room
   join <name>                            Join a room
   invite <username>                      Invite a user
   late [--all | <number>]                Read room messages
   leave                                  Leave current room
+  dissolve                               Dissolve the current room (owner only)
+  --ephemeral                            Default room expiry is 24 hours
+  --ephemeral 15s|1m|1h|2d               Custom room expiry
 
 Moderation
   mute <username>                        Mute a user
@@ -66,7 +70,7 @@ Node
   peer remove <url>                      Remove a peer
   peer list                              Show configured peers
   sync                                   Synchronize objects with peers
-  node run [--host <host>] [--port <p>]  Run local node
+  node run [--port <p>]                  Run local node
 
 Help
   help                                   Show this help

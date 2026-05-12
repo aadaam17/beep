@@ -1,6 +1,7 @@
-from storage.fs import BeepFS
 from datetime import datetime
+
 from state import Mode
+from storage.fs import BeepFS
 
 fs = BeepFS()
 DEFAULT_READ = 10
@@ -14,13 +15,9 @@ def dispatch(cmd, args, state):
         print(f"Error: You must be logged in to use '{cmd}'")
         return
 
-    # ================= CHAT =================
     if cmd == "chat":
-
-        # -------- LIST MY CHATS --------
         if not parts:
             chats = fs.list_chats(user)
-
             if not chats:
                 print("No chats.")
                 return
@@ -31,13 +28,9 @@ def dispatch(cmd, args, state):
             return
 
         target = parts[0]
-
-        # No self-chat
         if target == user:
             print("Error: You cannot chat with yourself")
             return
-
-        # Target must exist
         if not fs.user_exists(target):
             print(f"Error: User '{target}' does not exist")
             return
@@ -50,9 +43,9 @@ def dispatch(cmd, args, state):
 
         state.enter_chat(target)
         print(f"Entered chat with {target}")
+        return
 
-    # ================= SAY =================
-    elif cmd == "say":
+    if cmd == "say":
         if state.mode != Mode.CHAT:
             print("Error: 'say' can only be used inside a chat")
             return
@@ -62,19 +55,18 @@ def dispatch(cmd, args, state):
 
         try:
             fs.chat_say(state.current_chat, user, args)
-            print("✓ message sent")
+            print("[CHAT] message sent")
         except PermissionError as e:
             print(f"Error: {e}")
+        return
 
-    # ================= READ =================
-    elif cmd == "read":
+    if cmd == "read":
         if state.mode != Mode.CHAT:
             print("Error: 'read' can only be used inside a chat")
             return
 
         num = DEFAULT_READ
         show_all = False
-
         if parts:
             if parts[0] == "--all":
                 show_all = True
@@ -87,20 +79,20 @@ def dispatch(cmd, args, state):
             return
 
         display = msgs if show_all else msgs[-num:]
-        display.sort(key=lambda m: m["timestamp"])
+        display.sort(key=lambda message: message["timestamp"])
 
-        for m in display:
-            t = datetime.fromtimestamp(m["timestamp"]).strftime("%H:%M")
-            print(f"[{t}] {m['sender']}: {m['content']}")
+        for message in display:
+            timestamp = datetime.fromtimestamp(message["timestamp"]).strftime("%H:%M")
+            print(f"[{timestamp}] {message['sender']}: {message['content']}")
+        return
 
-    # ================= EXIT =================
-    elif cmd == "exit":
+    if cmd == "exit":
         if state.mode != Mode.CHAT:
             print("Error: Not in a chat")
             return
 
         print("Left chat")
         state.exit_chat()
+        return
 
-    else:
-        print(f"Unknown chat command: {cmd}")
+    print(f"Unknown chat command: {cmd}")

@@ -10,6 +10,6 @@ Posts are stored locally with optional replication for global and followed feeds
 python3 -m venv .venv
 source .venv/bin/activate # for debian linux
 venv\Scripts\activate.ps1 # for windows
-pip install -r requirement.txt
+pip install -r requirements.txt
 python3 cli.py
 

@@ -1,6 +1,6 @@
 import shlex
 from state import AppState, Mode
-from commands import auth, feed, post, profile, follow, chat, room, moderation, help, sync, node
+from commands import auth, feed, post, profile, follow, chat, room, moderation, help, sync, node, view
 from commands.sync import SyncCommand
 
 from network.peers import add_peer, load_peers, remove_peer
@@ -16,10 +16,11 @@ COMMAND_MODULES = {
     "profile": ["profile"],
     "follow": ["follow", "unfollow"],
     "chat": ["chat", "say", "read", "exit"],
-    "room": ["room", "join", "leave", "invite", "say", "late"],
+    "room": ["room", "join", "leave", "invite", "say", "late", "dissolve"],
     "feed": ["fyp", "next", "hold", "resume"],
     "moderation": ["mute", "unmute", "kick", "mod", "unmod"],
     "help": ["help"],
+    "view": ["view"],
     "sync": ["sync"],
     "node": ["node"],
 }
@@ -34,6 +35,7 @@ MODULE_DISPATCH = {
     "feed": feed.dispatch,
     "moderation": moderation.dispatch,
     "help": help.dispatch,
+    "view": view.dispatch,
     "sync": SyncCommand.dispatch,
     "node": node.dispatch,
 }
@@ -41,13 +43,14 @@ MODULE_DISPATCH = {
 COMMAND_TO_MODULE = {cmd: module for module, cmds in COMMAND_MODULES.items() for cmd in cmds}
 
 # Room-only commands
-ROOM_COMMANDS = {"late", "invite"}
+ROOM_COMMANDS = {"late", "invite", "dissolve"}
 MOD_COMMANDS = {"mute", "unmute", "kick", "mod", "unmod"}
 ROOM_ONLY = ROOM_COMMANDS.union(MOD_COMMANDS)
 AUTO_SYNC_BEFORE = {
     "fyp",
     "next",
     "profile",
+    "view",
     "chat",
     "read",
     "room",
@@ -55,6 +58,7 @@ AUTO_SYNC_BEFORE = {
     "late",
     "say",
     "invite",
+    "dissolve",
     "mute",
     "unmute",
     "kick",
@@ -72,6 +76,7 @@ AUTO_SYNC_AFTER = {
     "unfollow",
     "say",
     "invite",
+    "dissolve",
     "mute",
     "unmute",
     "kick",
@@ -96,6 +101,12 @@ def main_loop():
 
     while True:
         try:
+            session_status = state.refresh_session()
+            if session_status == "changed" and state.user:
+                print(f"[AUTH] Session switched to '{state.user}'.")
+            elif session_status == "cleared":
+                print("[AUTH] Session ended. Logged out in this terminal too.")
+
             line = input(get_prompt()).strip()
             if not line:
                 continue
@@ -151,7 +162,11 @@ def main_loop():
                         except:
                             print("Invalid port. Using default 8000")
 
-                    run_node(port=port)
+                    run_node(
+                        port=port,
+                        session_username=state.user,
+                        session_pubkey=state.pubkey,
+                    )
                 else:
                     print("Usage: beep node run --port <port>")
                 continue

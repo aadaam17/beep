@@ -56,6 +56,9 @@ def dispatch(cmd, args, state):
                 print(f"[AUTH] User '{state.user}' logged out.")
                 state.user = None
                 state.pubkey = None
+                state.exit_chat()
+                state.exit_room()
+                state.exit_profile()
                 clear_session()
             else:
                 print("[AUTH] No user currently logged in.")

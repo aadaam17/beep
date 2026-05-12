@@ -30,12 +30,12 @@ def dispatch(cmd, args, state):
 
     elif cmd == "comment":
         if len(parts) < 2:
-            print("[COMMENT] Usage: comment <post_id> <content>")
+            print("[COMMENT] Usage: comment <object_id> <content>")
             return
         post_id, content = parts[0], " ".join(parts[1:])
         parent = get_object(post_id)
         if not parent:
-            print(f"[COMMENT] Error: Post {post_id} does not exist or was deleted")
+            print(f"[COMMENT] Error: Object {post_id} does not exist or was deleted")
             return
         comment_id = create_post(state.pubkey, content, post_type="comment", parent_id=post_id)
         print(f"[COMMENT] Comment added: {comment_id} (to {post_id})")

@@ -214,6 +214,57 @@ class BeepFS:
         save_object(join_obj.to_dict())
         return "joined"
 
+    def leave_room(self, name, user):
+        if not self.user_exists(user):
+            raise ValueError(f"User '{user}' does not exist")
+
+        room = self._build_room_state(name)
+        if not room:
+            raise ValueError("Room not found")
+
+        user_pubkey = self._user_pubkey(user)
+        if user_pubkey == room["owner_pubkey"]:
+            return "owner_exit"
+        if user_pubkey not in room["members"]:
+            return "not_member"
+
+        leave_obj = BeepObject.create_object(
+            type_="room_event",
+            author_pubkey=user_pubkey,
+            content="leave",
+            meta={
+                "room": room["room_id"],
+                "action": "leave",
+                "target_pubkey": user_pubkey,
+            },
+        )
+        save_object(leave_obj.to_dict())
+        return "left"
+
+    def dissolve_room(self, name, user):
+        if not self.user_exists(user):
+            raise ValueError(f"User '{user}' does not exist")
+
+        room = self._build_room_state(name)
+        if not room:
+            raise ValueError("Room not found")
+
+        actor_pubkey = self._user_pubkey(user)
+        if actor_pubkey != room["owner_pubkey"]:
+            raise PermissionError("Only the room owner can dissolve the room")
+
+        dissolve_obj = BeepObject.create_object(
+            type_="room_event",
+            author_pubkey=actor_pubkey,
+            content="dissolve",
+            meta={
+                "room": room["room_id"],
+                "action": "dissolve",
+            },
+        )
+        save_object(dissolve_obj.to_dict())
+        return "dissolved"
+
     def invite(self, room_name, user, actor=None):
         if not self.user_exists(user):
             raise ValueError(f"User '{user}' does not exist")
@@ -232,7 +283,7 @@ class BeepFS:
             return "already_member"
 
         target_key_id = get_rsa_fingerprint(target_pubkey)
-        if target_pubkey in room["invited"]:
+        if room["invited"].get(target_pubkey) == target_key_id:
             return "already_invited"
 
         encrypted = encrypt_for_recipients(
@@ -722,6 +773,7 @@ class BeepFS:
             "muted": {},
             "ephemeral": bool(ttl),
             "expires_at": expires_at,
+            "dissolved": False,
         }
 
         events = sorted(
@@ -742,8 +794,17 @@ class BeepFS:
             if action == "invite":
                 invited_pubkey = self._legacy_target_pubkey(meta)
                 invited_key_id = meta.get("target_key_id")
+                if not invited_key_id:
+                    for slot in meta.get("encrypted", {}).get("keys", []):
+                        if slot.get("key_id"):
+                            invited_key_id = slot["key_id"]
+                            break
                 if invited_pubkey and invited_key_id:
                     room["invited"][invited_pubkey] = invited_key_id
+                continue
+
+            if action == "dissolve":
+                room["dissolved"] = True
                 continue
 
             if not target_pubkey:
@@ -774,5 +835,8 @@ class BeepFS:
             elif action == "kick":
                 room["members"].discard(target_pubkey)
                 room["banned"].add(target_pubkey)
+
+        if room["dissolved"]:
+            return None
 
         return room
