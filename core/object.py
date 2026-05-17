@@ -1,33 +1,52 @@
 # core/object.py
 
-from dataclasses import dataclass, field
-from typing import Dict, Any, Optional
+"""Canonical Beep object model and signing pipeline."""
+
+from __future__ import annotations
+
 import time
+from dataclasses import dataclass, field
+from typing import TypedDict
+
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from core.hash import compute_object_id
 from core.signing import sign_object
-from storage.profile import get_user_by_pubkey
+from core.types import BeepObjectRecord, ObjectMeta
 from crypto.sign import load_or_create_signing_keys
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+
+def _default_meta() -> ObjectMeta:
+    """Return a typed empty metadata mapping for new objects."""
+
+    return {}
+
+
+class SignableObjectRecord(TypedDict):
+    """Object fields used during hashing and signing before finalization."""
+
+    type: str
+    author: str
+    content: str
+    timestamp: float
+    meta: ObjectMeta
 
 
 @dataclass
 class BeepObject:
+    """Immutable signed content object."""
+
     type: str
-    author: str  # author_pubkey
+    author: str
     content: str
-    timestamp: int = field(default_factory=lambda: int(time.time()))
+    timestamp: float = field(default_factory=time.time)
+    meta: ObjectMeta = field(default_factory=_default_meta)
+    id: str | None = None
+    signature: str | None = None
 
-    meta: Dict[str, Any] = field(default_factory=dict)
+    def to_signable_dict(self) -> SignableObjectRecord:
+        """Serialize the fields that participate in hashing and signing."""
 
-    id: Optional[str] = None
-    signature: Optional[str] = None
-
-    # --- Canonical serialization ---
-    def to_signable_dict(self) -> Dict[str, Any]:
-        """
-        ONLY fields that are part of hashing/signing.
-        """
         return {
             "type": self.type,
             "author": self.author,
@@ -36,27 +55,35 @@ class BeepObject:
             "meta": self.meta,
         }
 
-    def to_dict(self) -> Dict[str, Any]:
-        """
-        Full object (stored form)
-        """
+    def to_dict(self) -> BeepObjectRecord:
+        """Serialize the full stored form of the object."""
+
+        if self.id is None or self.signature is None:
+            raise ValueError("Object must have an id and signature before serialization")
+
         return {
-            **self.to_signable_dict(),
+            "type": self.type,
+            "author": self.author,
+            "timestamp": self.timestamp,
+            "content": self.content,
+            "meta": self.meta,
             "id": self.id,
             "signature": self.signature,
         }
 
-    # --- ID + signing enforcement ---
     def build_id(self) -> "BeepObject":
+        """Compute the content-derived identifier if needed."""
+
         if self.id:
             return self
         self.id = compute_object_id(self.to_signable_dict())
         return self
 
     def sign(self, private_key: Ed25519PrivateKey) -> "BeepObject":
+        """Sign a previously identified object."""
+
         if not self.id:
             raise ValueError("Object must be built (id generated) before signing")
-
         if self.signature:
             raise ValueError("Object is already signed")
 
@@ -64,45 +91,46 @@ class BeepObject:
         return self
 
     def finalize(self, private_key: Ed25519PrivateKey) -> "BeepObject":
-        """
-        Full enforced pipeline:
-        build → sign
-        """
+        """Run the full build-then-sign pipeline."""
+
         return self.build_id().sign(private_key)
 
-    # --- Factory (replaces create_object) ---
     @staticmethod
-    def create_object(type_: str, author_pubkey: str, content: str, timestamp: Optional[int] = None, meta=None):
-        if meta is None:
-            meta = {}
+    def create_object(
+        type_: str,
+        author_pubkey: str,
+        content: str,
+        timestamp: float | None = None,
+        meta: ObjectMeta | None = None,
+    ) -> "BeepObject":
+        """Create, identify, and sign an object for a known author."""
 
+        from storage.profile import get_user_by_pubkey
+
+        object_meta: ObjectMeta = {} if meta is None else meta
         user = get_user_by_pubkey(author_pubkey)
         if not user:
             raise ValueError("Unknown author")
 
-        priv, _ = load_or_create_signing_keys(user["username"])
-
-        obj = BeepObject(
+        private_key, _ = load_or_create_signing_keys(user["username"])
+        return BeepObject(
             type=type_,
             author=author_pubkey,
             content=content,
-            timestamp=timestamp or int(time.time()),
-            meta=meta,
-        )
-
-        obj.finalize(priv)
-        return obj
+            timestamp=time.time() if timestamp is None else timestamp,
+            meta=object_meta,
+        ).finalize(private_key)
 
     @staticmethod
-    def from_dict(data: Dict[str, Any]) -> "BeepObject":
-        obj = BeepObject(
+    def from_dict(data: BeepObjectRecord) -> "BeepObject":
+        """Build an object instance from stored data."""
+
+        return BeepObject(
             type=data["type"],
             author=data["author"],
             content=data["content"],
             timestamp=data["timestamp"],
-            meta=data.get("meta", {}),
-            id=data.get("id"),
-            signature=data.get("signature"),
+            meta=data["meta"],
+            id=data["id"],
+            signature=data["signature"],
         )
-
-        return obj

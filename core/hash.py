@@ -1,13 +1,24 @@
 # core/hash.py
 
-import json
 import hashlib
-from typing import Dict, Any
+import json
+from typing import TypedDict
 
-def canonical_message(obj: dict) -> str:
-    """
-    IMPORTANT: must be deterministic across all nodes
-    """
+from core.types import ObjectMeta
+
+
+class HashableObject(TypedDict):
+    """Object fields that participate in canonical hashing."""
+
+    type: str
+    author: str
+    content: str
+    timestamp: float
+    meta: ObjectMeta
+
+
+def canonical_message(obj: HashableObject) -> str:
+    """Return the deterministic canonical payload used for hashing."""
 
     return json.dumps(
         {
@@ -15,27 +26,15 @@ def canonical_message(obj: dict) -> str:
             "author": obj["author"],
             "content": obj["content"],
             "timestamp": obj["timestamp"],
-            "meta": obj.get("meta", {}),
+            "meta": obj["meta"],
         },
         sort_keys=True,
         separators=(",", ":"),
     )
 
 
-def compute_object_id(obj: Dict[str, Any]) -> str:
-    """
-    Generates content-addressed ID using SHA256.
-    MUST NOT include signature field.
-    """
+def compute_object_id(obj: HashableObject) -> str:
+    """Generate a content-addressed object ID without using the signature."""
 
-    # Only stable fields participate in hashing
-    core_obj = {
-        "type": obj.get("type"),
-        "author": obj.get("author"),
-        "timestamp": obj.get("timestamp"),
-        "content": obj.get("content"),
-        "meta": obj.get("meta", {})
-    }
-
-    encoded = canonical_message(core_obj).encode()
+    encoded = canonical_message(obj).encode()
     return hashlib.sha256(encoded).hexdigest()

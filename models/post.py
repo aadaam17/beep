@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import Optional
 
 @dataclass
 class Post:
@@ -7,5 +7,5 @@ class Post:
     author: str
     content: str
     timestamp: int
-    comments: Optional[List] = None
+    comments: Optional[list["Post"]] = None
     revoked: bool = False

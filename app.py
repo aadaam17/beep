@@ -1,16 +1,36 @@
+from __future__ import annotations
+
 import shlex
+from typing import Callable
+
 from state import AppState, Mode
-from commands import auth, feed, post, profile, follow, chat, room, moderation, help, sync, node, view
+from commands import (
+    auth,
+    backup,
+    chat,
+    feed,
+    follow,
+    help,
+    moderation,
+    node,
+    post,
+    profile,
+    restore,
+    room,
+    storage as storage_cmd,
+    sync,
+    view,
+)
 from commands.sync import SyncCommand
 
 from network.peers import add_peer, load_peers, remove_peer
 from network.sync import sync
-from network.node import run_node
 
 state = AppState()
+AppDispatcher = Callable[[str, str, AppState], None]
 
 # Mapping commands to their dispatch modules
-COMMAND_MODULES = {
+COMMAND_MODULES: dict[str, list[str]] = {
     "auth": ["register", "login", "logout"],
     "post": ["post", "comment", "share", "quote", "delete"],
     "profile": ["profile"],
@@ -19,13 +39,16 @@ COMMAND_MODULES = {
     "room": ["room", "join", "leave", "invite", "say", "late", "dissolve"],
     "feed": ["fyp", "next", "hold", "resume"],
     "moderation": ["mute", "unmute", "kick", "mod", "unmod"],
+    "backup": ["backup"],
+    "restore": ["restore"],
     "help": ["help"],
     "view": ["view"],
     "sync": ["sync"],
     "node": ["node"],
+    "storage": ["storage"],
 }
 
-MODULE_DISPATCH = {
+MODULE_DISPATCH: dict[str, AppDispatcher] = {
     "auth": auth.dispatch,
     "post": post.dispatch,
     "profile": profile.dispatch,
@@ -34,13 +57,18 @@ MODULE_DISPATCH = {
     "room": room.dispatch,
     "feed": feed.dispatch,
     "moderation": moderation.dispatch,
+    "backup": backup.dispatch,
+    "restore": restore.dispatch,
     "help": help.dispatch,
     "view": view.dispatch,
     "sync": SyncCommand.dispatch,
     "node": node.dispatch,
+    "storage": storage_cmd.dispatch,
 }
 
-COMMAND_TO_MODULE = {cmd: module for module, cmds in COMMAND_MODULES.items() for cmd in cmds}
+COMMAND_TO_MODULE: dict[str, str] = {
+    cmd: module for module, cmds in COMMAND_MODULES.items() for cmd in cmds
+}
 
 # Room-only commands
 ROOM_COMMANDS = {"late", "invite", "dissolve"}
@@ -84,7 +112,7 @@ AUTO_SYNC_AFTER = {
     "unmod",
 }
 
-def get_prompt():
+def get_prompt() -> str:
     if state.mode == Mode.CHAT and state.current_chat:
         return f"[chat:@{state.current_chat}] > "
     elif state.mode == Mode.ROOM and state.current_room:
@@ -94,7 +122,7 @@ def get_prompt():
     else:
         return "[fyp:global] > "
 
-def main_loop():
+def main_loop() -> None:
     print("Welcome to Beep CLI v0.2")
     if state.user:
         print(f"[AUTH] Restored session for '{state.user}'")
@@ -148,27 +176,11 @@ def main_loop():
                 continue
 
             elif cmd_name == "sync":
-                sync()
-                print("sync complete")
+                SyncCommand.dispatch(cmd_name, args, state)
                 continue
 
             elif cmd_name == "node":
-                if len(parts) >= 2 and parts[1] == "run":
-                    port = 8000
-                    if "--port" in parts:
-                        try:
-                            port_index = parts.index("--port") + 1
-                            port = int(parts[port_index])
-                        except:
-                            print("Invalid port. Using default 8000")
-
-                    run_node(
-                        port=port,
-                        session_username=state.user,
-                        session_pubkey=state.pubkey,
-                    )
-                else:
-                    print("Usage: beep node run --port <port>")
+                node.dispatch(cmd_name, args, state)
                 continue
 
             # --- Route 'say' based on mode ---

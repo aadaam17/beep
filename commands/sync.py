@@ -1,34 +1,17 @@
-from network.replication import Replicator
-from network.smart_replication import SmartReplicator
+# commands/sync.py
 
-# class SyncCommand:
-#     @staticmethod
-#     def dispatch(cmd, args, state):
-#         if cmd != "sync":
-#             return
+from network.sync import sync as sync_now
+from core.types import CommandState
 
-#         if not state.peers:
-#             print("[SYNC] No peers configured")
-#             return
-
-#         print(f"[SYNC] syncing with {len(state.peers)} peers...")
-#         peers = state.peers
-#         Replicator(peers).sync()
-
-#         print("[SYNC] done")
 
 class SyncCommand:
     @staticmethod
-    def dispatch(cmd, args, state):
+    def dispatch(cmd: str, args: str, state: CommandState) -> None:
         if cmd != "sync":
             return
 
-        if not state.peers:
-            print("[SYNC] No peers configured")
-            return
+        result = sync_now(verbose=True)
 
-        print(f"[SYNC] syncing with {len(state.peers)} peers...")
-        peers = state.peers
-        SmartReplicator(peers).sync(state)
-
-        print("[SYNC] done")
+        print(
+            f"[SYNC] done: {result['imported']} imported from {result['peers']} peer(s)"
+        )

@@ -1,4 +1,5 @@
 # Placeholder for network client (HTTP/WebSocket)
+
 class NetworkClient:
     def __init__(self):
         print("[NETWORK] Initialized client")

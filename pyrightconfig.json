@@ -1,0 +1,30 @@
+{
+  "include": [
+    "app.py",
+    "cli.py",
+    "config.py",
+    "reset_storage.py",
+    "state.py",
+    "commands",
+    "core",
+    "crypto",
+    "models",
+    "network",
+    "node",
+    "storage",
+    "tests",
+    "utils"
+  ],
+  "exclude": [
+    "**/__pycache__",
+    "venv",
+    "venv-wsl"
+  ],
+  "typeCheckingMode": "strict",
+  "reportMissingTypeStubs": "none",
+  "reportUnknownMemberType": "warning",
+  "reportUnknownVariableType": "warning",
+  "reportUnknownArgumentType": "warning",
+  "reportMissingImports": "warning",
+  "pythonVersion": "3.12"
+}

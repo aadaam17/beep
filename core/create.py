@@ -1,8 +1,23 @@
+# core/create.py
+
+from typing import Literal, Optional
+
 from core.object import BeepObject
 from storage.objects import save_object
 
 
-def create_post(author_pubkey, content, *, post_type="post", shared_from=None, quote=False, parent_id=None):
+PostType = Literal["post", "comment", "share", "quote"]
+
+
+def create_post(
+    author_pubkey: str,
+    content: str,
+    *,
+    post_type: PostType = "post",
+    shared_from: Optional[str] = None,
+    quote: bool = False,
+    parent_id: Optional[str] = None,
+) -> str:
     obj = BeepObject.create_object(
         type_=post_type,
         author_pubkey=author_pubkey,
@@ -14,4 +29,10 @@ def create_post(author_pubkey, content, *, post_type="post", shared_from=None, q
         },
     )
     save_object(obj.to_dict())
-    return obj.id
+    # return obj.id
+
+    post_id = obj.id
+    if post_id is None:
+        raise ValueError("Created object has no id")
+
+    return post_id

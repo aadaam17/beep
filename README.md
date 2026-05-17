@@ -1,15 +1,268 @@
-Beep is a lightweight, anonymous social networking platform designed for terminal enthusiasts. Built for Python/Termux, it allows users (“Beepers”) to:
-Create and share posts anonymously
-Follow other users or browse the global feed
-Comment, share, and quote posts
-Chat privately or in rooms
-Enjoy offline-friendly feeds using a hybrid local-first replication system
-Posts are stored locally with optional replication for global and followed feeds, ensuring privacy, fast access, and offline availability.
+# Beep
 
+Beep is a command-line-native, decentralized social network built around:
 
-python3 -m venv .venv
-source .venv/bin/activate # for debian linux
-venv\Scripts\activate.ps1 # for windows
+- cryptographic identity
+- immutable signed objects
+- local-first storage
+- peer-to-peer object replication
+- recoverable ownership via an Identity Root Object (IRO)
+
+It is not a hosted platform. It is a protocol plus a local node runtime.
+
+## Current Model
+
+Each Beep user runs a local node and owns:
+
+- a deterministic root seed
+- a deterministic Ed25519 signing identity
+- a deterministic X25519 encryption identity
+- a local object store
+- a local session and profile state
+
+Beep objects are immutable and signed. The current object families include:
+
+- `post`
+- `comment`
+- `share`
+- `quote`
+- `profile`
+- `iro`
+- `follow`
+- `chat`
+- `dm`
+- `room`
+- `room_event`
+- `room_message`
+
+## Identity
+
+Human usernames are aliases. The real identity is the signing public key.
+
+Current key model:
+
+- signing: deterministic `seed-ed25519-v1`
+- live encryption: deterministic `seed-x25519-v1`
+- legacy compatibility: optional `rsa-legacy-v1`
+
+Important rule:
+
+- new identities are deterministic-only by default
+- RSA is no longer created for fresh users automatically
+- RSA exists only for imported or recovered legacy history that still needs it
+
+## IRO
+
+The Identity Root Object is the owner’s recoverable network index.
+
+It currently tracks:
+
+- `owner_pubkey`
+- `username`
+- `object_ids`
+- `post_ids`
+- `chat_ids`
+- `room_ids`
+- `peer_refs`
+
+When legacy history exists, the IRO payload may also carry:
+
+- `legacy_rsa_private_pem`
+- `legacy_rsa_public_pem`
+
+Current IRO envelope layers:
+
+- `meta.encrypted`
+  - live deterministic owner envelope
+  - scheme: `x25519-aesgcm-v1`
+- `meta.recovery_encrypted`
+  - seed-recovery envelope
+  - scheme: `seed-recovery-aes-gcm-v1`
+- `meta.legacy_encrypted`
+  - optional RSA compatibility envelope
+  - scheme: `rsa-oaep-v1`
+
+Protocol rule:
+
+- live IRO access should use `meta.encrypted`
+- mnemonic recovery should use `meta.recovery_encrypted`
+- `meta.legacy_encrypted` exists only for backward compatibility
+
+## Messaging And Rooms
+
+Direct messages and room messages use versioned encrypted envelopes.
+
+Current live message scheme:
+
+- `x25519-aesgcm-v1`
+
+Legacy compatibility:
+
+- older RSA-encrypted messages with `rsa-oaep-v1` are still readable when legacy RSA material exists
+
+Protocol rule:
+
+- all new live encrypted communication uses deterministic X25519
+- RSA is not part of the live path anymore
+
+## Backup And Recovery
+
+Beep currently supports:
+
+- encrypted backup files
+- mnemonic recovery
+- recovery-aware object fetch using IRO object IDs and peer refs
+
+### Backup File
+
+Commands:
+
+```text
+beep backup create --file backup.enc
+beep backup import --file backup.enc
+```
+
+Encrypted backup files contain:
+
+- local user record
+- root seed
+- deterministic signing material
+- IRO pointer and indexed objects
+- optional legacy RSA material only when that user actually has legacy state
+
+Protocol rule:
+
+- deterministic-only identities do not carry RSA backup fields
+- RSA backup fields are included only for legacy-compatible identities
+
+### Mnemonic Recovery
+
+Commands:
+
+```text
+beep backup create --mnemonic
+beep restore --mnemonic "<phrase>" -p <new-local-password>
+beep restore recover
+```
+
+Mnemonic recovery flow:
+
+1. decode mnemonic into root seed
+2. re-derive deterministic signing identity
+3. find the newest IRO for that owner pubkey
+4. decrypt the IRO with the seed-recovery envelope
+5. rebuild the local identity
+6. restore optional legacy RSA state if the IRO carried it
+7. fetch missing indexed objects with `beep restore recover`
+
+## Sync
+
+Beep uses object replication between peers.
+
+Current sync behavior:
+
+- object inventory exchange through node endpoints
+- missing object fetch by ID
+- trust verification before local storage
+- recovery sync guided by the IRO
+
+Peer commands:
+
+```text
+beep peer add <url>
+beep peer remove <url>
+beep peer list
+beep sync
+beep node run --port <port>
+```
+
+## CLI Usage
+
+Create and run a virtual environment:
+
+```powershell
+python -m venv venv
+.\venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-python3 cli.py
+.\venv\Scripts\python.exe cli.py
+```
 
+Inside the CLI, every command starts with `beep`.
+
+Example:
+
+```text
+beep register -u alice -p pass123
+beep login -u alice -p pass123
+beep post "hello world"
+beep fyp global
+```
+
+## Main Commands
+
+Identity and recovery:
+
+```text
+beep register -u <username> -p <password>
+beep login -u <username> -p <password>
+beep logout
+beep backup create --file <path>
+beep backup create --mnemonic
+beep backup import --file <path>
+beep restore --file <path>
+beep restore --mnemonic "<phrase>" -p <password>
+beep restore recover
+```
+
+Social:
+
+```text
+beep post "text"
+beep comment <object_id> "reply"
+beep share <post_id>
+beep quote <post_id> "text"
+beep follow <username>
+beep unfollow <username>
+beep profile
+beep profile <username>
+beep view <object_id>
+```
+
+Messaging:
+
+```text
+beep chat <username>
+beep say "message"
+beep read --all
+```
+
+Rooms:
+
+```text
+beep room <name> [--private] [--ephemeral <ttl>]
+beep join <name>
+beep invite <username>
+beep leave
+beep dissolve
+beep late --all
+```
+
+## Migration Rules
+
+The current protocol migration policy is:
+
+1. New users are deterministic-only.
+2. New live encrypted objects use deterministic X25519.
+3. Existing RSA history remains readable only when legacy RSA material exists.
+4. Legacy RSA material is preserved through IRO recovery and backup only when needed.
+5. RSA should be treated as compatibility state, not a live dependency.
+
+## What’s Next
+
+The codebase is now at the point where the next strong improvements are:
+
+- publishing a dedicated protocol spec file separate from the README
+- versioning sync and schema behavior more formally
+- adding delta-aware sync instead of full inventory scans
+- hardening peer discovery and replication policy
+- documenting pruning and retention rules for pinned recovery-critical objects

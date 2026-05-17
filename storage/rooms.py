@@ -1,3 +1,5 @@
+# storage/rooms.py
+
 from .fs import BeepFS
 
 fs = BeepFS()

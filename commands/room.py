@@ -1,5 +1,7 @@
-from datetime import datetime
+# commands/room.py
 
+from datetime import datetime
+from core.types import CommandState
 from state import Mode
 from storage.fs import BeepFS
 from storage.profile import get_user
@@ -9,7 +11,7 @@ DEFAULT_LATEST = 5
 EPHEMERAL_TTL_SECONDS = 86400
 
 
-def _parse_ephemeral_ttl(parts):
+def _parse_ephemeral_ttl(parts: list[str]) -> int | None:
     if "--ephemeral" not in parts:
         return None
 
@@ -46,18 +48,18 @@ def _parse_ephemeral_ttl(parts):
     return value * multiplier
 
 
-def dispatch(cmd, args, state):
+def dispatch(cmd: str, args: str, state: CommandState) -> None:
     room_only = {"say", "late", "invite", "dissolve"}
     login_required = {"room", "join", "say", "invite", "dissolve"}
 
     parts = args.split() if args else []
-    user = state.user
+    user_name = state.user
 
     if cmd in room_only and state.mode != Mode.ROOM:
         print(f"Error: '{cmd}' can only be used inside a room")
         return
 
-    if cmd in login_required and not user:
+    if cmd in login_required and user_name is None:
         print(f"Error: You must be logged in to use '{cmd}'")
         return
 
@@ -86,7 +88,10 @@ def dispatch(cmd, args, state):
         ephemeral = ttl is not None
 
         try:
-            fs.create_room(name, user, private, ttl)
+            if user_name is None:
+                print(f"Error: You must be logged in to use '{cmd}'")
+                return
+            fs.create_room(name, user_name, private, ttl)
             state.enter_room(name)
             if ephemeral:
                 print(f"Room created and joined: {name} (expires in {ttl}s)")
@@ -106,7 +111,10 @@ def dispatch(cmd, args, state):
 
         room_name = parts[0]
         try:
-            result = fs.join_room(room_name, user)
+            if user_name is None:
+                print(f"Error: You must be logged in to use '{cmd}'")
+                return
+            result = fs.join_room(room_name, user_name)
             state.enter_room(room_name)
             if result != "already_member":
                 print(f"Joined {room_name}")
@@ -121,8 +129,11 @@ def dispatch(cmd, args, state):
             print("Error: Not in a room")
             return
         room_name = state.current_room
+        if room_name is None or user_name is None:
+            print("Error: No active room")
+            return
         try:
-            result = fs.leave_room(room_name, user)
+            result = fs.leave_room(room_name, user_name)
             print(f"Leaving room: {room_name}")
         except ValueError as e:
             print(f"Error: {e}")
@@ -134,8 +145,12 @@ def dispatch(cmd, args, state):
         if not args:
             print("Error: message required")
             return
+        room_name = state.current_room
+        if room_name is None or user_name is None:
+            print("Error: No active room")
+            return
         try:
-            fs.say(state.current_room, user, args)
+            fs.say(room_name, user_name, args)
             print("[ROOM] sent")
         except PermissionError as e:
             print(f"Error: {e}")
@@ -150,7 +165,12 @@ def dispatch(cmd, args, state):
             elif parts[0].isdigit():
                 num = int(parts[0])
 
-        msgs, _ = fs.read_messages(state.current_room, user)
+        room_name = state.current_room
+        if room_name is None or user_name is None:
+            print("Error: No active room")
+            return
+
+        msgs, _ = fs.read_messages(room_name, user_name)
         if not msgs:
             print("No messages in this room yet.")
             return
@@ -173,8 +193,13 @@ def dispatch(cmd, args, state):
             print(f"Error: User '{target_user}' does not exist")
             return
 
+        room_name = state.current_room
+        if room_name is None or user_name is None:
+            print("Error: No active room")
+            return
+
         try:
-            result = fs.invite(state.current_room, target_user, actor=user)
+            result = fs.invite(room_name, target_user, actor=user_name)
             if result == "already_member":
                 print(f"{target_user} is already in the room")
             elif result == "already_invited":
@@ -189,8 +214,11 @@ def dispatch(cmd, args, state):
 
     if cmd == "dissolve":
         room_name = state.current_room
+        if room_name is None or user_name is None:
+            print("Error: No active room")
+            return
         try:
-            fs.dissolve_room(room_name, user)
+            fs.dissolve_room(room_name, user_name)
             print(f"Dissolved room {room_name}")
             state.exit_room()
         except ValueError as e:

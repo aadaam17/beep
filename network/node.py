@@ -1,3 +1,5 @@
+# network/node.py
+
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 import os
@@ -9,6 +11,8 @@ from core.index import ObjectIndex
 from core.object_store import ObjectStore
 from network.sync import receive_object as handle_incoming_object
 from storage.session import session_matches
+
+from typing import Optional, Any
 
 app = FastAPI()
 store = ObjectStore()
@@ -41,20 +45,45 @@ async def receive_object_route(request: Request):
     return {"status": "accepted"}
 
 
+# @app.get("/inventory")
+# def inventory():
+#     index = ObjectIndex()
+#     objs = index.get_all()
+
+#     return {
+#         "ids": [o["id"] for o in objs],
+#         "meta": {
+#             o["id"]: {
+#                 "author": o["author"],
+#                 "timestamp": o["timestamp"],
+#             }
+#             for o in objs
+#         },
+#     }
+
+
 @app.get("/inventory")
-def inventory():
+def inventory() -> dict[str, Any]:
     index = ObjectIndex()
     objs = index.get_all()
 
+    ids: list[str] = []
+    meta: dict[str, dict[str, Any]] = {}
+
+    for o in objs:
+        obj_id = o.get("id")
+        if not obj_id:
+            continue
+
+        ids.append(obj_id)
+        meta[obj_id] = {
+            "author": o["author"],
+            "timestamp": o["timestamp"],
+        }
+
     return {
-        "ids": [o["id"] for o in objs],
-        "meta": {
-            o["id"]: {
-                "author": o["author"],
-                "timestamp": o["timestamp"],
-            }
-            for o in objs
-        },
+        "ids": ids,
+        "meta": meta,
     }
 
 
@@ -76,7 +105,7 @@ def objects_recent(limit: int = 50):
     return {"objects": index.get_recent(limit)}
 
 
-def _watch_session(username, pubkey):
+def _watch_session(username: str, pubkey: str) -> None:
     while True:
         time.sleep(1)
         if not session_matches(username, pubkey):
@@ -84,8 +113,13 @@ def _watch_session(username, pubkey):
             os._exit(0)
 
 
-def run_node(host="0.0.0.0", port=8000, session_username=None, session_pubkey=None):
-    if session_username and session_pubkey:
+def run_node(
+    host: str = "0.0.0.0",
+    port: int = 8000,
+    session_username: Optional[str] = None,
+    session_pubkey: Optional[str] = None,
+) -> None:
+    if session_username is not None and session_pubkey is not None:
         watcher = threading.Thread(
             target=_watch_session,
             args=(session_username, session_pubkey),

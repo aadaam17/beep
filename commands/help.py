@@ -1,4 +1,8 @@
-def dispatch(cmd, args, state):
+# commands/help.py
+
+from core.types import CommandState
+
+def dispatch(cmd: str, args: str, state: CommandState) -> None:
     print(
         """
 Beep - Anonymous CLI Social Network
@@ -12,6 +16,12 @@ Identity & Session
   register -u <username> -p <password>   Create local identity
   login -u <username> -p <password>      Unlock identity
   logout                                 Lock identity
+  backup create --file <path>            Create encrypted backup file
+  backup create --mnemonic               Show mnemonic recovery phrase
+  backup import --file <path>            Import encrypted backup file
+  restore --file <path>                  Restore local identity from backup file
+  restore --mnemonic "<phrase>" -p <pw>  Restore from mnemonic and set local password
+  restore recover                        Recover missing IRO-indexed objects from peers
 
 Feed
   fyp global                             Switch to global feed
@@ -71,6 +81,9 @@ Node
   peer list                              Show configured peers
   sync                                   Synchronize objects with peers
   node run [--port <p>]                  Run local node
+  storage status [--reason <reason>]     Show retention summary
+  storage inspect <object_id>            Show why an object is retained
+  storage prune [--apply]                Dry-run or apply pruning
 
 Help
   help                                   Show this help

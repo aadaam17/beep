@@ -2,6 +2,7 @@
 
 import json
 from pathlib import Path
+from typing import Iterable
 from urllib.parse import urlparse, urlunparse
 
 PEER_FILE = Path.home() / ".beep" / "peers.json"
@@ -34,7 +35,7 @@ def normalize_peer_url(peer_url: str) -> str:
     return normalized.rstrip("/")
 
 
-def load_peers():
+def load_peers() -> list[str]:
     if not PEER_FILE.exists():
         return []
 
@@ -50,7 +51,7 @@ def load_peers():
     if not isinstance(peers, list):
         return []
 
-    normalized = []
+    normalized: list[str] = []
     seen = set()
 
     for peer in peers:
@@ -71,8 +72,8 @@ def load_peers():
     return normalized
 
 
-def save_peers(peers):
-    normalized = []
+def save_peers(peers: Iterable[str]) -> None:
+    normalized: list[str] = []
     seen = set()
 
     for peer in peers:
@@ -85,7 +86,7 @@ def save_peers(peers):
     PEER_FILE.write_text(json.dumps(normalized, indent=2))
 
 
-def add_peer(peer_url: str):
+def add_peer(peer_url: str) -> str:
     peer_url = normalize_peer_url(peer_url)
     peers = load_peers()
     if peer_url not in peers:
@@ -94,7 +95,7 @@ def add_peer(peer_url: str):
     return peer_url
 
 
-def remove_peer(peer_url: str):
+def remove_peer(peer_url: str) -> str:
     peer_url = normalize_peer_url(peer_url)
     peers = load_peers()
     peers = [p for p in peers if p != peer_url]

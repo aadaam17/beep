@@ -1,13 +1,16 @@
+# commands/chat.py
+
 from datetime import datetime
 
 from state import Mode
 from storage.fs import BeepFS
+from core.types import CommandState
 
 fs = BeepFS()
 DEFAULT_READ = 10
 
 
-def dispatch(cmd, args, state):
+def dispatch(cmd: str, args: str, state: CommandState) -> None:
     parts = args.split() if args else []
     user = state.user
 
@@ -52,6 +55,9 @@ def dispatch(cmd, args, state):
         if not args:
             print("Error: message required")
             return
+        if not state.current_chat:
+            print("Error: No active chat")
+            return
 
         try:
             fs.chat_say(state.current_chat, user, args)
@@ -63,6 +69,9 @@ def dispatch(cmd, args, state):
     if cmd == "read":
         if state.mode != Mode.CHAT:
             print("Error: 'read' can only be used inside a chat")
+            return
+        if not state.current_chat:
+            print("Error: No active chat")
             return
 
         num = DEFAULT_READ

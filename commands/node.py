@@ -1,20 +1,33 @@
-from node.runtime import run_node
+# commands/node.py
 
-def dispatch(cmd, args, state):
+from network.node import run_node
+from core.types import CommandState
+
+
+def dispatch(cmd: str, args: str, state: CommandState) -> None:
     if cmd != "node":
         return
 
     parts = args.split()
 
+    if not parts or parts[0] != "run":
+        print("Usage: node run --port <port>")
+        return
+
+    if state.user is None or state.pubkey is None:
+        print("You must be logged in to run a node.")
+        return
+
     port = 8000
-    host = "127.0.0.1"
 
     if "--port" in parts:
-        i = parts.index("--port")
-        port = int(parts[i + 1])
+        try:
+            port = int(parts[parts.index("--port") + 1])
+        except (ValueError, IndexError):
+            print("Invalid port. Using default 8000")
 
-    if "--host" in parts:
-        i = parts.index("--host")
-        host = parts[i + 1]
-
-    run_node(host, port)
+    run_node(
+        port=port,
+        session_username=state.user,
+        session_pubkey=state.pubkey,
+    )
