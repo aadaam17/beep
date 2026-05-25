@@ -56,6 +56,15 @@ def validate_object_schema(obj: Mapping[str, Any]) -> list[str]:
             _expect_type(meta, "rsa_pubkey", str, errors, prefix="meta")
         if "rsa_fingerprint" in meta:
             _expect_type(meta, "rsa_fingerprint", str, errors, prefix="meta")
+    elif obj_type == "presence":
+        _require_keys(meta, {"username", "endpoint", "reachable_via"}, errors, prefix="meta")
+        _expect_type(meta, "username", str, errors, prefix="meta")
+        _expect_type(meta, "endpoint", str, errors, prefix="meta")
+        _expect_type(meta, "reachable_via", str, errors, prefix="meta")
+        if "ttl" in meta:
+            _expect_type(meta, "ttl", int, errors, prefix="meta")
+        if "relay_hints" in meta and not isinstance(meta["relay_hints"], list):
+            errors.append("meta.relay_hints must be list")
     elif obj_type == "iro":
         _require_keys(
             meta,

@@ -280,6 +280,24 @@ def get_user(username: str) -> UserRecord | None:
     return users.get(username) or _get_remote_user(username)
 
 
+def get_known_users() -> list[UserRecord]:
+    """Return the union of local and synced known users, deduplicated by pubkey."""
+
+    known_by_pubkey: dict[str, UserRecord] = {}
+
+    for user in load_users().values():
+        known_by_pubkey[user["pubkey"]] = user
+
+    for obj in query_objects(obj_type="profile"):
+        remote_user = _build_remote_user(obj)
+        known_by_pubkey.setdefault(remote_user["pubkey"], remote_user)
+
+    return sorted(
+        known_by_pubkey.values(),
+        key=lambda user: (user["username"].lower(), user["pubkey"]),
+    )
+
+
 def update_user(username: str, data: UserRecord | dict[str, object]) -> UserRecord:
     """Update a local user record and republish their profile."""
 

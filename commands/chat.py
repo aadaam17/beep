@@ -2,6 +2,7 @@
 
 from datetime import datetime
 
+from core.identity import build_identity_handle, find_identity_matches
 from state import Mode
 from storage.fs import BeepFS
 from core.types import CommandState
@@ -34,18 +35,30 @@ def dispatch(cmd: str, args: str, state: CommandState) -> None:
         if target == user:
             print("Error: You cannot chat with yourself")
             return
-        if not fs.user_exists(target):
-            print(f"Error: User '{target}' does not exist")
+
+        matches = find_identity_matches(target)
+        if not matches:
+            print(f"Error: User '{target}' is not known locally")
+            return
+        if len(matches) > 1:
+            print(f"Error: '{target}' is ambiguous. Use a handle:")
+            for match in matches:
+                print(f" - {build_identity_handle(match['username'], match['pubkey'])}")
+            return
+
+        target_user = matches[0]["username"]
+        if target_user == user:
+            print("Error: You cannot chat with yourself")
             return
 
         try:
-            fs.create_chat(None, user, target)
+            fs.create_chat(None, user, target_user)
         except ValueError as e:
             print(f"Error: {e}")
             return
 
-        state.enter_chat(target)
-        print(f"Entered chat with {target}")
+        state.enter_chat(target_user)
+        print(f"Entered chat with {target_user}")
         return
 
     if cmd == "say":

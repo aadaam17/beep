@@ -11,7 +11,7 @@ import requests
 
 from core.types import BeepObjectRecord
 from core.verify import verify_object
-from network.peers import load_peers
+from storage.relay import load_network_targets
 from storage.objects import get_object, list_objects, pin_object, save_object
 
 TYPE_LABELS = {
@@ -83,7 +83,7 @@ def push_object_to_peers(
 ) -> int:
     """Push a stored object to all known peers."""
 
-    peer_list = peers if peers is not None else load_peers()
+    peer_list = peers if peers is not None else load_network_targets()
     return sum(1 for peer in peer_list if push_object(peer, obj, verbose=verbose))
 
 
@@ -164,7 +164,7 @@ def sync_peer(peer: str, local_ids: set[str], *, verbose: bool = True) -> SyncSu
 def sync(*, verbose: bool = True) -> dict[str, int | TypeCounter]:
     """Synchronize objects with all configured peers."""
 
-    peers = load_peers()
+    peers = load_network_targets()
     local_ids = set(list_objects())
     overall_types: TypeCounter = Counter()
     imported_total = 0

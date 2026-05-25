@@ -74,6 +74,7 @@ class RoomService:
         if creator_user is None:
             raise ValueError(f"User '{creator}' does not exist")
 
+        normalized_ttl = int(ttl) if ttl is not None else None
         room_id = self.make_room_id(creator_user["pubkey"], name)
         room_obj = BeepObject.create_object(
             type_="room",
@@ -82,12 +83,13 @@ class RoomService:
             meta={
                 "room_id": room_id,
                 "private": bool(private),
-                "ttl": ttl,
+                "ttl": normalized_ttl,
                 "owner_pubkey": creator_user["pubkey"],
                 "key_epoch": 1,
             },
         )
-        save_object(room_obj.to_dict())
+        if not save_object(room_obj.to_dict()):
+            raise ValueError("Room could not be saved")
 
     def join_room(
         self,
@@ -512,7 +514,11 @@ class RoomService:
     def get_room_object(self, name_or_id: str):
         """Find the canonical room object by name or room ID."""
 
-        room_objects = query_objects(obj_type="room")
+        room_objects = sorted(
+            query_objects(obj_type="room"),
+            key=lambda obj: obj["timestamp"],
+            reverse=True,
+        )
         for obj in room_objects:
             if obj.get("content") == name_or_id:
                 return obj

@@ -128,6 +128,7 @@ def _print_full_tree(obj: BeepObjectRecord, children: ChildMap, indent: int) -> 
     """Recursively print an object and all descendant comments."""
 
     print(_format_header(obj, indent=indent))
+    _print_embedded_source(obj, indent=indent)
     object_id = obj.get("id")
     if not object_id:
         return
@@ -164,6 +165,7 @@ def _print_path_with_descendants(
 
     root = path[0]
     print(_format_header(root, indent=0))
+    _print_embedded_source(root, indent=0)
 
     current_indent = 1
     for node in path[1:]:
@@ -182,6 +184,20 @@ def _parent_id(obj: BeepObjectRecord) -> str | None:
     """Extract a string parent ID from comment metadata."""
 
     return _meta_string(obj, "parent_id")
+
+
+def _print_embedded_source(obj: BeepObjectRecord, *, indent: int) -> None:
+    """Print the shared or quoted source object as an embedded reference line."""
+
+    shared_from = _meta_string(obj, "shared_from")
+    if shared_from is None:
+        return
+
+    source = get_object(shared_from)
+    if source is None:
+        return
+
+    print(_format_header(source, indent=indent + 1))
 
 
 def _meta_string(obj: BeepObjectRecord, key: str) -> str | None:

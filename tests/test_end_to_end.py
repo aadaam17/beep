@@ -1,13 +1,15 @@
+import io
 import tempfile
 import time
 import unittest
 import json
-from contextlib import ExitStack
+from contextlib import ExitStack, redirect_stdout
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
 from commands import auth
+from commands import connect as connect_command
 from collections import Counter
 from cryptography.hazmat.primitives import serialization
 from core.object import BeepObject
@@ -16,12 +18,16 @@ from crypto import mnemonic as crypto_mnemonic
 from crypto import seed as crypto_seed
 from crypto import sign as crypto_sign
 from network import node as network_node
+from network import node_manager as network_node_manager
 from network import peers as network_peers
 from network import sync as network_sync
+from storage import network_policy as storage_network_policy
+from storage import relay as storage_relay
 from state import AppState
 from storage import backup as storage_backup
 from storage import iro as storage_iro
 from storage import objects as storage_objects
+from storage import presence as storage_presence
 from storage import profile as storage_profile
 from storage import restore as storage_restore
 from storage import session as storage_session
@@ -45,6 +51,9 @@ class IsolatedStorageTestCase(unittest.TestCase):
         self.pins_file = self.storage_root / "pins.json"
         self.session_file = self.beep_home / "beep_session.json"
         self.peer_file = self.beep_home / "peers.json"
+        self.relay_file = self.beep_home / "relays.json"
+        self.policy_file = self.beep_home / "network_policy.json"
+        self.node_runtime_file = self.beep_home / "node_runtime.json"
         self.user_storage_file = self.beep_home / "beep_users.json"
         self.chat_index_file = self.chats_dir / "index.json"
 
@@ -97,7 +106,16 @@ class IsolatedStorageTestCase(unittest.TestCase):
             patch.object(network_peers, "PEER_FILE", self.peer_file)
         )
         self.patches.enter_context(
-            patch.object(network_sync, "load_peers", return_value=[])
+            patch.object(storage_relay, "RELAY_FILE", self.relay_file)
+        )
+        self.patches.enter_context(
+            patch.object(storage_network_policy, "POLICY_FILE", self.policy_file)
+        )
+        self.patches.enter_context(
+            patch.object(network_node_manager, "RUNTIME_FILE", self.node_runtime_file)
+        )
+        self.patches.enter_context(
+            patch.object(network_sync, "load_network_targets", return_value=[])
         )
 
         from storage import chat_service
@@ -609,6 +627,148 @@ class EndToEndFlowTests(IsolatedStorageTestCase):
                 network_node._watch_session("alice", "pubkey_1")
 
         mock_exit.assert_called_once_with(0)
+
+    def test_connect_command_resolves_known_handle(self):
+        alice = self.create_user("alice")
+        state = SimpleNamespace(user="alice", pubkey=alice["pubkey"])
+
+        output = io.StringIO()
+        with redirect_stdout(output):
+            connect_command.dispatch("connect", "", state)
+
+        self.assertIn(f"alice#{alice['pubkey'][:6]}", output.getvalue())
+
+    def test_presence_endpoint_ignores_stale_presence(self):
+        alice = self.create_user("alice")
+        presence_id = storage_presence.publish_local_presence(
+            "alice",
+            "http://127.0.0.1:9001",
+            ttl_seconds=1,
+        )
+        presence = storage_objects.get_object(presence_id)
+
+        self.assertIsNotNone(presence)
+        self.assertTrue(storage_presence.is_presence_fresh(presence, now=presence["timestamp"] + 0.5))
+        self.assertFalse(storage_presence.is_presence_fresh(presence, now=presence["timestamp"] + 2))
+
+        with patch("storage.presence.time.time", return_value=presence["timestamp"] + 2):
+            self.assertIsNone(storage_presence.get_presence_endpoint(alice["pubkey"]))
+
+    def test_presence_uses_configured_public_endpoint_when_set(self):
+        alice = self.create_user("alice")
+        storage_network_policy.update_network_policy(
+            public_endpoint="https://relay.example.net"
+        )
+
+        presence_id = storage_presence.publish_local_presence(
+            "alice",
+            "http://127.0.0.1:9001",
+        )
+        presence = storage_objects.get_object(presence_id)
+
+        self.assertIsNotNone(presence)
+        self.assertEqual(
+            presence["meta"].get("endpoint"),
+            "https://relay.example.net",
+        )
+        self.assertEqual(
+            storage_presence.get_presence_endpoint(alice["pubkey"]),
+            "https://relay.example.net",
+        )
+
+    def test_direct_only_strategy_excludes_relays_from_targets(self):
+        storage_network_policy.update_network_policy(
+            relay_enabled=True,
+            strategy="direct-only",
+        )
+        network_peers.save_peers(["http://peer-a"])
+        storage_relay.save_relays(["http://relay-a"])
+
+        targets = storage_relay.load_network_targets()
+
+        self.assertEqual(targets, ["http://peer-a"])
+
+    def test_chat_and_follow_accept_identity_handles(self):
+        alice = self.create_user("alice")
+        bob = self.create_user("bob")
+        bob_handle = f"bob#{bob['pubkey'][:6]}"
+
+        chat_state = AppState()
+        chat_state.user = "alice"
+        chat_state.pubkey = alice["pubkey"]
+
+        from commands import chat as chat_command
+        from commands import follow as follow_command
+
+        chat_output = io.StringIO()
+        with redirect_stdout(chat_output):
+            chat_command.dispatch("chat", bob_handle, chat_state)
+
+        self.assertEqual(chat_state.current_chat, "bob")
+        self.assertIn("Entered chat with bob", chat_output.getvalue())
+
+        follow_output = io.StringIO()
+        with redirect_stdout(follow_output):
+            follow_command.dispatch("follow", bob_handle, chat_state)
+
+        self.assertIn(
+            bob["pubkey"],
+            storage_profile.get_effective_following(alice["pubkey"]),
+        )
+        self.assertIn("now following bob", follow_output.getvalue())
+
+    @patch("network.node_manager._node_is_reachable", return_value=True)
+    @patch("network.node_manager.subprocess.Popen")
+    @patch("network.node_manager._find_free_port", return_value=9311)
+    def test_background_node_manager_starts_and_persists_runtime(
+        self,
+        mock_port,
+        mock_popen,
+        mock_reachable,
+    ):
+        mock_popen.return_value.pid = 4242
+
+        runtime = network_node_manager.ensure_background_node("alice", "pubkey_1")
+
+        self.assertIsNotNone(runtime)
+        self.assertEqual(runtime["port"], 9311)
+        self.assertEqual(runtime["pid"], 4242)
+        self.assertEqual(
+            network_node_manager.load_node_runtime()["url"],
+            "http://127.0.0.1:9311",
+        )
+        mock_popen.assert_called_once()
+        mock_port.assert_called_once_with()
+        self.assertGreaterEqual(mock_reachable.call_count, 1)
+
+    @patch("network.node_manager._node_is_reachable", return_value=True)
+    @patch("network.node_manager.subprocess.Popen")
+    def test_background_node_manager_respects_disabled_autostart(
+        self,
+        mock_popen,
+        mock_reachable,
+    ):
+        storage_network_policy.update_network_policy(node_autostart=False)
+
+        runtime = network_node_manager.ensure_background_node("alice", "pubkey_1")
+
+        self.assertIsNone(runtime)
+        mock_popen.assert_not_called()
+        mock_reachable.assert_not_called()
+
+    @patch("app.ensure_background_node")
+    def test_app_starts_background_node_after_login(self, mock_ensure_node):
+        user = self.create_user("alice")
+        state = AppState()
+
+        auth.dispatch("login", "-u alice -p pass123", state)
+        if state.user and state.pubkey:
+            import app
+
+            app.state = state
+            app._ensure_background_node_for_session()
+
+        mock_ensure_node.assert_called_once_with("alice", user["pubkey"])
 
 
 if __name__ == "__main__":

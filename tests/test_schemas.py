@@ -35,6 +35,42 @@ class SchemaValidationTests(unittest.TestCase):
 
         self.assertIn("meta.encrypted is required", errors)
 
+    def test_presence_requires_endpoint_metadata(self):
+        obj = {
+            "id": "abc",
+            "type": "presence",
+            "author": "00" * 32,
+            "timestamp": 1,
+            "content": "alice",
+            "signature": "11" * 64,
+            "meta": {"username": "alice"},
+        }
+
+        errors = validate_object_schema(obj)
+
+        self.assertIn("meta.endpoint is required", errors)
+        self.assertIn("meta.reachable_via is required", errors)
+
+    def test_presence_ttl_must_be_integer(self):
+        obj = {
+            "id": "abc",
+            "type": "presence",
+            "author": "00" * 32,
+            "timestamp": 1,
+            "content": "alice",
+            "signature": "11" * 64,
+            "meta": {
+                "username": "alice",
+                "endpoint": "http://127.0.0.1:9911",
+                "reachable_via": "direct",
+                "ttl": "bad",
+            },
+        }
+
+        errors = validate_object_schema(obj)
+
+        self.assertIn("meta.ttl must be int", errors)
+
     def test_iro_requires_owner_and_recovery_or_rsa_payload(self):
         obj = {
             "id": "abc",

@@ -1,29 +1,38 @@
-# commands/profile.py
+"""Profile viewing commands."""
 
-from core.identity import resolve_username
+from core.identity import build_identity_handle, find_identity_matches, resolve_username
+from core.types import CommandState
 from storage.objects import query_objects
-from storage.profile import get_user, get_effective_followers, get_effective_following
-from state import AppState
+from storage.profile import get_effective_followers, get_effective_following
 
 
-def dispatch(cmd: str, args: str, state: AppState) -> None:
+def dispatch(cmd: str, args: str, state: CommandState) -> None:
     parts = args.split() if args else []
 
     show_posts = "--posts" in parts
     show_shared = "--shared" in parts
 
-    username = next((part for part in parts if not part.startswith("--")), None)
-    username = username or state.user
+    requested_identity = next((part for part in parts if not part.startswith("--")), None)
 
-    if not username:
+    if requested_identity is None:
+        requested_identity = state.user
+
+    if not requested_identity:
         print("[PROFILE] No user selected. Log in or pass a username.")
         return
 
-    profile_data = get_user(username)
-    if not profile_data:
-        print(f"[PROFILE] User '{username}' not found")
+    matches = find_identity_matches(requested_identity)
+    if not matches:
+        print(f"[PROFILE] User '{requested_identity}' not found")
+        return
+    if len(matches) > 1:
+        print(f"[PROFILE] '{requested_identity}' is ambiguous. Use a handle:")
+        for match in matches:
+            print(f" - {build_identity_handle(match['username'], match['pubkey'])}")
         return
 
+    profile_data = matches[0]
+    username = profile_data["username"]
     profile_pubkey: str = profile_data["pubkey"]
 
     followers = [

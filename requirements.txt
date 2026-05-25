@@ -2,6 +2,4 @@ cryptography
 requests
 fastapi
 uvicorn
-
-
-
+textual

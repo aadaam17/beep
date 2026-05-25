@@ -2,6 +2,7 @@
 
 from typing import Callable
 
+from core.identity import build_identity_handle, find_identity_matches
 from core.types import CommandState, UserRecord
 
 from storage.profile import (
@@ -20,18 +21,26 @@ def dispatch(cmd: str, args: str, state: CommandState) -> None:
         return
 
     if not args_list:
-        print(f"[{cmd.upper()}] Usage: {cmd} <username>")
+        print(f"[{cmd.upper()}] Usage: {cmd} <username-or-handle>")
         return
 
-    target_username = args_list[0].lower()
-    target_profile: UserRecord | None = get_user(target_username)
+    target_identifier = args_list[0].lower()
+    matches = find_identity_matches(target_identifier)
 
     # ---------------------------
     # VALIDATION
     # ---------------------------
-    if not target_profile:
-        print(f"[{cmd.upper()}] User '{target_username}' does not exist")
+    if not matches:
+        print(f"[{cmd.upper()}] User '{target_identifier}' is not known locally")
         return
+    if len(matches) > 1:
+        print(f"[{cmd.upper()}] '{target_identifier}' is ambiguous. Use a handle:")
+        for match in matches:
+            print(f" - {build_identity_handle(match['username'], match['pubkey'])}")
+        return
+
+    target_profile: UserRecord = matches[0]
+    target_username = target_profile["username"]
 
     target_pubkey: str = target_profile["pubkey"]
 
