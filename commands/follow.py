@@ -8,7 +8,6 @@ from core.types import CommandState, UserRecord
 from storage.profile import (
     follow,
     unfollow,
-    get_user,
     get_effective_following,
     is_following,
 )

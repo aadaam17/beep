@@ -1540,6 +1540,17 @@ class HomeScreen(Static):
         if not parts:
             return
 
+        if parts[0] == "beep":
+            parts = parts[1:]
+            if not parts:
+                self._refresh_network()
+                self.query_one("#detail-title", Label).update("Network Console")
+                self.query_one("#detail-body", Static).update(
+                    "This box only supports network commands.\n"
+                    "Try: status | check | setup --relay <url> | peer add <url> | relay policy"
+                )
+                return
+
         session = load_session()
         state = SimpleNamespace(
             user=session["username"] if session else None,
@@ -1559,8 +1570,8 @@ class HomeScreen(Static):
                     network_dispatch("network", " ".join(parts), state)
                 else:
                     print(
-                        "Use network, relay, or peer commands here. "
-                        "Examples: status | check | peer add <url> | relay policy"
+                        "This box only supports network commands.\n"
+                        "Try: status | check | setup --relay <url> | peer add <url> | relay policy"
                     )
         except Exception as exc:
             output.write(f"[NETWORK] Command failed: {exc}\n")
