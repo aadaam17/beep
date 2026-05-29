@@ -814,8 +814,11 @@ class RoomScreen(Screen[None]):
         unmute_button.disabled = no_selection or not selected_is_muted
         kick_button.disabled = no_selection or selected_is_owner
         mod_button.disabled = no_selection or selected_is_owner or selected_is_mod
+        mod_button.display = can_manage_mods
         unmod_button.disabled = no_selection or selected_is_owner or not selected_is_mod
+        unmod_button.display = can_manage_mods
         dissolve_button.disabled = not can_dissolve
+        dissolve_button.display = can_dissolve
 
     def _can_moderate(
         self, room_state: dict[str, object], actor_pubkey: str | None

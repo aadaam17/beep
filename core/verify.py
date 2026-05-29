@@ -1,3 +1,4 @@
+# core/verify.py
 """Object signature and schema verification."""
 
 from cryptography.exceptions import InvalidSignature

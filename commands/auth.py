@@ -1,4 +1,5 @@
 # commands/auth.py
+"""Authentication and session management commands."""
 
 from __future__ import annotations
 

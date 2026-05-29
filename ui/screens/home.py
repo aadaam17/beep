@@ -39,8 +39,11 @@ from storage.profile import (
 )
 from storage.relay import load_relays
 from storage.session import clear_session, load_session
+from commands.connect import dispatch as connect_dispatch
 from commands.network import dispatch as network_dispatch
 from commands.relay import dispatch as relay_dispatch
+from commands.storage import dispatch as storage_dispatch
+from commands.sync import SyncCommand
 from ui.screens.chat import ChatScreen
 from ui.screens.post import PostScreen
 from ui.screens.room import RoomScreen
@@ -369,19 +372,35 @@ def _load_room_cards() -> list[RoomCard]:
 
     room_service = RoomService()
     session = load_session()
+    actor_pubkey = session["pubkey"] if session is not None else None
     cards: list[RoomCard] = []
     for room_name in room_service.list_rooms():
         room_state = room_service.build_room_state(room_name)
         if room_state is None:
             continue
-        preview = (
-            f"{len(room_state['members'])} member(s)"
-            if room_state["members"]
-            else "Empty room"
+        is_member = actor_pubkey is not None and actor_pubkey in room_state["members"]
+        is_owner = actor_pubkey == room_state["owner_pubkey"]
+        is_invited = (
+            actor_pubkey is not None
+            and actor_pubkey in room_state["invited"]
+            and not is_member
         )
+        if room_state["type"] == "public":
+            access_label = "open room"
+        elif is_owner:
+            access_label = "owner access"
+        elif is_member:
+            access_label = "member access"
+        elif is_invited:
+            access_label = "invited"
+        else:
+            access_label = "invite required"
+
+        preview = f"{access_label} | {len(room_state['members'])} member(s)"
         details = [
             f"Owner: {room_state['owner']}",
             f"Type: {room_state['type']}",
+            f"Access: {access_label}",
             f"Members: {len(room_state['members'])}",
         ]
         if session is not None:
@@ -398,10 +417,18 @@ def _load_room_cards() -> list[RoomCard]:
             RoomCard(
                 room_name=room_name,
                 preview=preview,
-                status=room_state["type"],
+                status=access_label,
                 details=details,
             )
         )
+    cards.sort(
+        key=lambda card: (
+            "invited" not in card.status,
+            "owner" not in card.status,
+            "member" not in card.status,
+            card.room_name.lower(),
+        )
+    )
     return cards
 
 
@@ -561,6 +588,39 @@ def _load_network_cards() -> list[NetworkCard]:
             console_command="network check",
         ),
         NetworkCard(
+            item_id="action-sync",
+            title="Sync now",
+            preview="Pull objects from current peers",
+            details=[
+                "Run an immediate object synchronization pass across configured peers.",
+                "",
+                "Press Enter to execute `sync` now.",
+            ],
+            console_command="sync",
+        ),
+        NetworkCard(
+            item_id="action-connect",
+            title="Show handle",
+            preview="Display your Beep handle and discovery posture",
+            details=[
+                "Show your current handle, pubkey, and discovery status.",
+                "",
+                "Press Enter to execute `connect` now.",
+            ],
+            console_command="connect",
+        ),
+        NetworkCard(
+            item_id="action-node-run",
+            title="Run node",
+            preview="Start a quiet background local node",
+            details=[
+                "Start the local node without blocking the interactive shell.",
+                "",
+                "Press Enter to execute `node run` now.",
+            ],
+            console_command="node run",
+        ),
+        NetworkCard(
             item_id="action-policy",
             title="Show policy",
             preview="Inspect relay and autostart policy",
@@ -592,6 +652,39 @@ def _load_network_cards() -> list[NetworkCard]:
                 "Press Enter to prefill `relay add ` in the network console.",
             ],
             compose_seed="relay add ",
+        ),
+        NetworkCard(
+            item_id="action-storage-status",
+            title="Storage status",
+            preview="Inspect retained and prunable objects",
+            details=[
+                "Show storage retention counts, reasons, and prunable totals.",
+                "",
+                "Press Enter to execute `storage status` now.",
+            ],
+            console_command="storage status",
+        ),
+        NetworkCard(
+            item_id="action-storage-prune",
+            title="Dry-run prune",
+            preview="Preview which objects would be removed",
+            details=[
+                "Run a dry-run prune so you can inspect object IDs before applying changes.",
+                "",
+                "Press Enter to execute `storage prune` now.",
+            ],
+            console_command="storage prune",
+        ),
+        NetworkCard(
+            item_id="action-storage-inspect",
+            title="Inspect object",
+            preview="Prepare a storage inspect command",
+            details=[
+                "Use the inline box below to inspect why a specific object is retained.",
+                "",
+                "Press Enter to prefill `storage inspect ` in the network console.",
+            ],
+            compose_seed="storage inspect ",
         ),
         NetworkCard(
             item_id="status",
@@ -1312,7 +1405,7 @@ class HomeScreen(Static):
         self._set_room_options_state(visible=False)
         self._set_composer_state(
             enabled=True,
-            placeholder="Try: status | check | setup --relay <url> | relay policy",
+            placeholder="Try: status | sync | connect | node run | storage status | relay policy",
             visible=True,
         )
 
@@ -1562,16 +1655,24 @@ class HomeScreen(Static):
             with redirect_stdout(output):
                 if parts[0] == "network":
                     network_dispatch("network", " ".join(parts[1:]), state)
+                elif parts[0] == "connect":
+                    connect_dispatch("connect", " ".join(parts[1:]), state)
                 elif parts[0] == "relay":
                     relay_dispatch("relay", " ".join(parts[1:]), state)
                 elif parts[0] == "peer":
                     self._run_peer_console_command(parts[1:], output)
+                elif parts[0] == "sync":
+                    SyncCommand.dispatch("sync", " ".join(parts[1:]), state)
+                elif parts[0] == "storage":
+                    storage_dispatch("storage", " ".join(parts[1:]), state)
+                elif parts[0] == "node":
+                    self._run_node_console_command(parts[1:], state, output)
                 elif parts[0] in {"status", "check", "setup"}:
                     network_dispatch("network", " ".join(parts), state)
                 else:
                     print(
-                        "This box only supports network commands.\n"
-                        "Try: status | check | setup --relay <url> | peer add <url> | relay policy"
+                        "This box only supports node, network, sync, connect, storage, relay, or peer commands.\n"
+                        "Try: status | sync | connect | node run | storage status | peer add <url> | relay policy"
                     )
         except Exception as exc:
             output.write(f"[NETWORK] Command failed: {exc}\n")
@@ -1580,6 +1681,38 @@ class HomeScreen(Static):
         self._refresh_network()
         self.query_one("#detail-title", Label).update("Network Console")
         self.query_one("#detail-body", Static).update(rendered)
+
+    def _run_node_console_command(
+        self,
+        parts: list[str],
+        state: SimpleNamespace,
+        output: io.StringIO,
+    ) -> None:
+        """Start or describe the local node from the network section."""
+
+        from network.node_manager import ensure_background_node
+
+        if not parts or parts[0] != "run":
+            output.write("Usage: node run\n")
+            return
+        if state.user is None or state.pubkey is None:
+            output.write("You must be logged in to run a node.\n")
+            return
+        if "--port" in parts:
+            output.write(
+                "Interactive node launch uses an automatic background port.\n"
+                "Use command mode if you need a manual `--port` selection.\n"
+            )
+            return
+
+        runtime = ensure_background_node(state.user, state.pubkey)
+        if runtime is None:
+            output.write("Could not start the local background node.\n")
+            return
+
+        output.write(
+            f"Local node running at {runtime['url']} (pid {runtime['pid']}).\n"
+        )
 
     def _run_peer_console_command(
         self,

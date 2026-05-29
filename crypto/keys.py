@@ -1,3 +1,4 @@
+# crypto/keys.py
 """Legacy RSA and deterministic X25519 key helpers."""
 
 from __future__ import annotations

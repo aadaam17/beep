@@ -1,4 +1,5 @@
 # core/create.py
+"""Functions to create new objects like posts, comments, shares, and quotes."""
 
 from typing import Literal, Optional
 

@@ -1,5 +1,4 @@
 # core/types.py
-
 """Shared typing primitives for the Beep codebase."""
 
 from __future__ import annotations

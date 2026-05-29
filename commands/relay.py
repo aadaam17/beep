@@ -1,3 +1,4 @@
+# commands/relay.py
 """Relay endpoint configuration commands."""
 
 from __future__ import annotations

@@ -1,5 +1,4 @@
 # core/thread_view.py
-
 """Thread rendering helpers for posts and nested comments."""
 
 from __future__ import annotations

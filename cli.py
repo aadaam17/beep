@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
-"""
-Beep CLI Entry
-- Launches the classic command shell or the Textual UI
-"""
+""" Beep CLI Entry - Launches the classic command shell or the Textual UI shell. """
 
 from __future__ import annotations
 

@@ -1,4 +1,5 @@
 # core/hash.py
+"""Hashing logic for generating content-addressed object IDs."""
 
 import hashlib
 import json

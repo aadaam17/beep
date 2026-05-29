@@ -10,6 +10,53 @@ Beep is a command-line-native, decentralized social network built around:
 
 It is not a hosted platform. It is a protocol plus a local node runtime.
 
+## Installation
+
+For local development:
+
+```bash
+python -m pip install -e .
+```
+
+For an isolated CLI install:
+
+```bash
+pipx install .
+```
+
+After installation:
+
+```bash
+beep
+beep shell
+```
+
+## Packaging
+
+Build release artifacts with:
+
+```bash
+python -m build
+```
+
+Validate the generated distributions with:
+
+```bash
+python -m twine check dist/*
+```
+
+Upload manually with:
+
+```bash
+python -m twine upload dist/*
+```
+
+GitHub Actions trusted publishing is configured in:
+
+```text
+.github/workflows/publish-pypi.yml
+```
+
 ## Current Model
 
 Each Beep user runs a local node and owns:

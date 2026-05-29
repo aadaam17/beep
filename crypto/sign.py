@@ -1,4 +1,6 @@
 # crypto/sign.py
+"""Signing logic for Beep objects using Ed25519 keys
+and deterministic root-seed-derived signing keys."""
 
 from pathlib import Path
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey

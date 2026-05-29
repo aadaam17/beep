@@ -1,4 +1,5 @@
 # crypto/seed.py
+"""Deterministic seed management and key derivation."""
 
 import os
 from pathlib import Path

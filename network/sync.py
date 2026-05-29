@@ -1,5 +1,4 @@
 # network/sync.py
-
 """Peer-to-peer object synchronization utilities."""
 
 from __future__ import annotations

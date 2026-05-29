@@ -1,3 +1,4 @@
+# core/object_store.py
 """Compatibility wrapper around the canonical object storage layer."""
 
 from __future__ import annotations

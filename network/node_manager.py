@@ -1,3 +1,4 @@
+# network/node_manager.py
 """Background local-node lifecycle helpers."""
 
 from __future__ import annotations
@@ -116,7 +117,11 @@ def ensure_background_node(username: str, pubkey: str) -> NodeRuntimeRecord | No
     clear_node_runtime()
 
     for attempt in range(3):
-        port = preferred_port if attempt == 0 and preferred_port is not None else _find_free_port()
+        port = (
+            preferred_port
+            if attempt == 0 and preferred_port is not None
+            else _find_free_port()
+        )
         runtime = _spawn_background_node(username, pubkey, port)
         if runtime is not None:
             save_node_runtime(runtime)

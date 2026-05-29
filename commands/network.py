@@ -1,3 +1,4 @@
+# commands/network.py
 """Unified network bootstrap, status, and health commands."""
 
 from __future__ import annotations

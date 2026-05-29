@@ -1,0 +1,9 @@
+cryptography
+requests
+fastapi
+uvicorn
+textual
+
+[dev]
+build
+twine

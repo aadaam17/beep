@@ -1,4 +1,5 @@
 # commands/follow.py
+"""Follow and unfollow CLI commands."""
 
 from typing import Callable
 

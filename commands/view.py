@@ -1,3 +1,4 @@
+# commands/view.py
 """Object thread viewing commands."""
 
 from core.thread_view import print_focus_view

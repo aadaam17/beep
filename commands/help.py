@@ -1,4 +1,5 @@
 # commands/help.py
+"""Help command to display usage instructions."""
 
 from core.types import CommandState
 

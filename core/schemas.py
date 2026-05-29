@@ -1,4 +1,5 @@
 # core/schemas.py
+"""Validation logic for Beep object schemas."""
 
 from typing import Any
 from collections.abc import Mapping

@@ -1,4 +1,5 @@
 # storage/iro.py
+"""IRO (Index of Recent Objects) management for user data recovery and retention."""
 
 import json
 from typing import cast

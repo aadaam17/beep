@@ -1,4 +1,5 @@
 # storage/chats.py
+"""Chat record storage and retrieval."""
 
 from .fs import BeepFS
 from core.types import ChatMessage, ChatRecord

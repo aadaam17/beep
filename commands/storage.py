@@ -1,5 +1,4 @@
 # commands/storage.py
-
 """Storage retention and pruning CLI commands."""
 
 from __future__ import annotations

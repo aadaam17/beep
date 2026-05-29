@@ -1,3 +1,5 @@
+"""Main application entry point and command dispatch for the Beep CLI."""
+
 from __future__ import annotations
 
 import shlex

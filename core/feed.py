@@ -1,4 +1,5 @@
 # core/feed.py
+"""Feed retrieval and filtering logic."""
 
 from storage.objects import list_objects, get_object
 from core.types import BeepObjectRecord

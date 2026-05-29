@@ -1,4 +1,5 @@
 # network/node.py
+"""Core local node server implementation."""
 
 from __future__ import annotations
 

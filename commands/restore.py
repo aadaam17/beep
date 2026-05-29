@@ -1,5 +1,4 @@
 # commands/restore.py
-
 """Restore and recovery CLI commands."""
 
 from __future__ import annotations

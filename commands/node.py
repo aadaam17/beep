@@ -1,4 +1,5 @@
 # commands/node.py
+"""Node management commands."""
 
 from network.node import run_node
 from core.types import CommandState

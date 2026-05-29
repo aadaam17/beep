@@ -1,4 +1,5 @@
 # core/signing.py
+"""Signing logic for Beep objects using Ed25519 keys."""
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 

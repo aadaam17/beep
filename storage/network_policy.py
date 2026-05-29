@@ -1,3 +1,4 @@
+# storage/network_policy.py
 """Persistent network policy for relay and node behavior."""
 
 from __future__ import annotations

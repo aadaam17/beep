@@ -1,3 +1,4 @@
+# core/identity.py
 """Identity display and known-user resolution helpers."""
 
 from __future__ import annotations

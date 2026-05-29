@@ -1,3 +1,4 @@
+# network/reachability.py
 """Shared endpoint reachability probes."""
 
 from __future__ import annotations

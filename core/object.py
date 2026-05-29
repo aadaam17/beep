@@ -1,5 +1,4 @@
 # core/object.py
-
 """Canonical Beep object model and signing pipeline."""
 
 from __future__ import annotations

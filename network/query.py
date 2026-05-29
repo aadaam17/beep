@@ -1,5 +1,4 @@
 # network/query.py
-
 """Peer query helpers."""
 
 from __future__ import annotations

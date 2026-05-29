@@ -1,3 +1,4 @@
+# commands/profile.py
 """Profile viewing commands."""
 
 from core.identity import build_identity_handle, find_identity_matches, resolve_username

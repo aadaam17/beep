@@ -1,4 +1,5 @@
 # commands/chat.py
+"""Chat-related CLI commands."""
 
 from datetime import datetime
 

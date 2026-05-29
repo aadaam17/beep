@@ -1,4 +1,5 @@
 # crypto/mnemonic.py
+"""Mnemonic encoding and decoding for deterministic seed generation."""
 
 import hashlib
 

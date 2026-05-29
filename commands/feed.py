@@ -1,4 +1,5 @@
 # commands/feed.py
+"""Feed-related CLI commands."""
 
 from __future__ import annotations
 

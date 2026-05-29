@@ -1,4 +1,5 @@
 # storage/posts.py
+"""Post record storage and retrieval."""
 
 from core.types import PostView
 

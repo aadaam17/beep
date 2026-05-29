@@ -1,4 +1,5 @@
 # commands/sync.py
+"""Sync command to synchronize data with peers."""
 
 from network.sync import sync as sync_now
 from core.types import CommandState

@@ -1,4 +1,5 @@
 # commands/moderation.py
+"""Moderation commands for managing room moderators, mutes, and kicks."""
 
 from storage.fs import BeepFS
 from state import Mode

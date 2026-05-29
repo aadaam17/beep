@@ -1,0 +1,55 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "beep-cli"
+version = "0.1.0"
+description = "Anonymous CLI social network with interactive Textual shell"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+keywords = ["cli", "terminal", "p2p", "social-network", "textual"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: End Users/Desktop",
+    "Topic :: Communications :: Chat",
+    "Topic :: Internet",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "cryptography",
+    "requests",
+    "fastapi",
+    "uvicorn",
+    "textual",
+]
+
+[project.optional-dependencies]
+dev = [
+    "build",
+    "twine",
+]
+
+[project.scripts]
+beep = "cli:main"
+
+[project.urls]
+Homepage = "https://github.com/aadaam17/Beep"
+Repository = "https://github.com/aadaam17/Beep"
+Issues = "https://github.com/aadaam17/Beep/issues"
+
+[tool.setuptools]
+py-modules = ["app", "cli", "config", "reset_storage", "state"]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["commands*", "core*", "crypto*", "models*", "network*", "node*", "storage*", "ui*", "utils*"]
+exclude = ["docs*", "tests*", "venv*", "__pycache__*"]

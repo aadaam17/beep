@@ -1,4 +1,5 @@
 # storage/rooms.py
+"""Room record storage and retrieval."""
 
 from .fs import BeepFS
 

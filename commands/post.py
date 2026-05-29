@@ -1,4 +1,5 @@
 # commands/post.py
+"""Post, comment, share, and quote CLI commands."""
 
 from storage.profile import get_user
 from core.create import create_post

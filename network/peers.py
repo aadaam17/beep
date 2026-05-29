@@ -1,4 +1,5 @@
 # network/peers.py
+"""Peer management for known network endpoints."""
 
 import json
 from pathlib import Path

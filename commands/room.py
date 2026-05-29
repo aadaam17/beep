@@ -1,4 +1,5 @@
 # commands/room.py
+"""Room management commands for creating, joining, leaving, and messaging in rooms."""
 
 from datetime import datetime
 from core.types import CommandState

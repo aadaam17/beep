@@ -1,5 +1,4 @@
 # storage/objects.py
-
 """Object store helpers and trust-gated persistence."""
 
 from __future__ import annotations

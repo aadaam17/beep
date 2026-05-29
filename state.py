@@ -1,4 +1,3 @@
-# state.py
 """Application runtime state for the interactive CLI."""
 
 from __future__ import annotations

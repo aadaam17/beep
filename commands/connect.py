@@ -1,3 +1,4 @@
+# commands/connect.py
 """Identity handle display and resolution commands."""
 
 from __future__ import annotations

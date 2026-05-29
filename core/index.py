@@ -1,4 +1,5 @@
 # core/index.py
+"""In-memory index of Beep objects for fast retrieval and querying."""
 
 from collections import defaultdict
 from typing import DefaultDict
