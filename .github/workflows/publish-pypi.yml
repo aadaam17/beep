@@ -8,6 +8,7 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
+
     permissions:
       id-token: write
       contents: read
@@ -21,8 +22,10 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install build tools
-        run: python -m pip install --upgrade build
+      - name: Upgrade pip + install build tools
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install build
 
       - name: Build distributions
         run: python -m build

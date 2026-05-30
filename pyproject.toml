@@ -26,12 +26,18 @@ classifiers = [
 dependencies = [
     "cryptography",
     "requests",
-    "fastapi",
-    "uvicorn",
-    "textual",
 ]
 
 [project.optional-dependencies]
+server = [
+    "fastapi",
+    "uvicorn"
+]
+
+ui = [
+    "textual"
+]
+
 dev = [
     "build",
     "twine",
