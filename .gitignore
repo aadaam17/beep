@@ -2,6 +2,22 @@
 venv/
 venv-wsl/
 
+# Python cache files
 __pycache__/
 *.pyc
 .pytest_cache/
+
+# textual cache
+.textual/
+.cache/
+*.cache
+
+# Build and distribution files
+dist/
+build/
+*.egg-info/
+__pycache__/
+
+# OS and Editor generated files
+.DS_Store
+.vscode/
