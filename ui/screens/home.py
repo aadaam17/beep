@@ -385,6 +385,14 @@ def _load_room_cards() -> list[RoomCard]:
             and actor_pubkey in room_state["invited"]
             and not is_member
         )
+        if (
+            room_state["type"] == "private"
+            and not is_owner
+            and not is_member
+            and not is_invited
+        ):
+            continue
+
         if room_state["type"] == "public":
             access_label = "open room"
         elif is_owner:
@@ -1101,7 +1109,7 @@ class HomeScreen(Static):
             card = self._selected_room_card()
             if card is None:
                 return
-            self.app.push_screen(RoomScreen(card.room_name))
+            self._open_or_create_room(card.room_name)
             return
 
     def _refresh_feed(self) -> None:

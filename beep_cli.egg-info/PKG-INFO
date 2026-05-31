@@ -23,9 +23,11 @@ Description-Content-Type: text/markdown
 License-File: LICENSE
 Requires-Dist: cryptography
 Requires-Dist: requests
-Requires-Dist: fastapi
-Requires-Dist: uvicorn
-Requires-Dist: textual
+Provides-Extra: server
+Requires-Dist: fastapi; extra == "server"
+Requires-Dist: uvicorn; extra == "server"
+Provides-Extra: ui
+Requires-Dist: textual; extra == "ui"
 Provides-Extra: dev
 Requires-Dist: build; extra == "dev"
 Requires-Dist: twine; extra == "dev"

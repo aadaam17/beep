@@ -9,7 +9,7 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.screen import Screen
-from textual.widgets import Button, Input, Label, ListItem, ListView, Static
+from textual.widgets import Input, Label, ListItem, ListView, Static
 
 from core.identity import resolve_username
 from storage.room_service import RoomService
@@ -72,7 +72,12 @@ class RoomScreen(Screen[None]):
         text-style: bold;
     }
 
-    #room-summary,
+    #room-summary {
+        border: round $panel;
+        padding: 0 1;
+        margin-top: 0;
+    }
+
     #room-admin-status {
         border: round $panel;
         padding: 1;
@@ -81,27 +86,11 @@ class RoomScreen(Screen[None]):
 
     #room-members-list {
         height: 1fr;
-        min-height: 12;
+        min-height: 8;
         border: round $panel;
         margin-top: 1;
     }
 
-    #room-action-row,
-    #room-owner-row {
-        margin-top: 1;
-        height: auto;
-    }
-
-    #room-action-row Button,
-    #room-owner-row Button {
-        width: 1fr;
-        min-width: 8;
-        height: 3;
-        min-height: 3;
-        padding: 0 1;
-    }
-
-    #room-invite-input,
     #room-admin-input {
         margin-top: 1;
     }
@@ -113,14 +102,7 @@ class RoomScreen(Screen[None]):
 
     BINDINGS = [
         Binding("r", "refresh_room", "Refresh"),
-        Binding("i", "focus_invite", "Invite"),
-        Binding("a", "focus_admin", "Admin"),
-        Binding("m", "promote_selected_member", "Mod"),
-        Binding("u", "demote_selected_member", "Unmod"),
-        Binding("x", "mute_selected_member", "Mute"),
-        Binding("z", "unmute_selected_member", "Unmute"),
-        Binding("k", "kick_selected_member", "Kick"),
-        Binding("d", "dissolve_room", "Dissolve"),
+        Binding("a", "focus_admin", "Command"),
         Binding("escape", "back", "Back"),
         Binding("q", "back", "Back"),
     ]
@@ -149,27 +131,13 @@ class RoomScreen(Screen[None]):
                 yield Label("Members / Admin", id="room-side-title")
                 yield Static("", id="room-summary")
                 yield ListView(id="room-members-list")
-                with Horizontal(id="room-action-row"):
-                    yield Button("Mute", id="room-action-mute")
-                    yield Button("Unmute", id="room-action-unmute")
-                    yield Button("Kick", id="room-action-kick", variant="error")
-                with Horizontal(id="room-owner-row"):
-                    yield Button("Mod", id="room-action-mod")
-                    yield Button("Unmod", id="room-action-unmod")
-                    yield Button("Dissolve", id="room-action-dissolve", variant="error")
-                yield Input(
-                    placeholder="Invite user by username or handle",
-                    id="room-invite-input",
-                )
-                yield Input(
-                    placeholder="Type: mod | unmod | mute | unmute | kick | dissolve",
-                    id="room-admin-input",
-                )
+                yield Input(placeholder="Room command", id="room-admin-input")
                 yield Static("", id="room-admin-status", classes="muted")
 
     def on_mount(self) -> None:
         """Load initial room details."""
 
+        self._join_room_if_allowed()
         self._refresh_room_body()
         self.set_interval(1.0, self._refresh_room_body)
 
@@ -183,49 +151,12 @@ class RoomScreen(Screen[None]):
 
         self.app.pop_screen()
 
-    def action_focus_invite(self) -> None:
-        """Focus the invite input when available."""
-
-        invite_input = self.query_one("#room-invite-input", Input)
-        if invite_input.display:
-            invite_input.focus()
-
     def action_focus_admin(self) -> None:
         """Focus the admin command input when available."""
 
         admin_input = self.query_one("#room-admin-input", Input)
         if admin_input.display:
             admin_input.focus()
-
-    def action_promote_selected_member(self) -> None:
-        """Promote the selected member to moderator."""
-
-        self._run_selected_member_action("mod")
-
-    def action_demote_selected_member(self) -> None:
-        """Remove moderator status from the selected member."""
-
-        self._run_selected_member_action("unmod")
-
-    def action_mute_selected_member(self) -> None:
-        """Mute the selected member."""
-
-        self._run_selected_member_action("mute")
-
-    def action_unmute_selected_member(self) -> None:
-        """Unmute the selected member."""
-
-        self._run_selected_member_action("unmute")
-
-    def action_kick_selected_member(self) -> None:
-        """Kick the selected member."""
-
-        self._run_selected_member_action("kick")
-
-    def action_dissolve_room(self) -> None:
-        """Dissolve the room when the current actor is the owner."""
-
-        self._run_admin_command("dissolve")
 
     def on_list_view_highlighted(self, event: ListView.Highlighted) -> None:
         """Update the admin status as member selection changes."""
@@ -237,43 +168,16 @@ class RoomScreen(Screen[None]):
         self._render_admin_status()
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
-        """Handle room message, invite, and admin command submissions."""
+        """Handle room message and admin command submissions."""
 
         if event.input.id == "room-screen-input":
             self._send_room_message(event.value.strip())
             event.input.value = ""
             return
 
-        if event.input.id == "room-invite-input":
-            self._invite_user(event.value.strip())
-            event.input.value = ""
-            return
-
         if event.input.id == "room-admin-input":
             self._run_admin_command(event.value.strip())
             event.input.value = ""
-
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        """Run room actions from the visual action rows."""
-
-        button_id = event.button.id
-        if button_id == "room-action-mute":
-            self._run_selected_member_action("mute")
-            return
-        if button_id == "room-action-unmute":
-            self._run_selected_member_action("unmute")
-            return
-        if button_id == "room-action-kick":
-            self._run_selected_member_action("kick")
-            return
-        if button_id == "room-action-mod":
-            self._run_selected_member_action("mod")
-            return
-        if button_id == "room-action-unmod":
-            self._run_selected_member_action("unmod")
-            return
-        if button_id == "room-action-dissolve":
-            self._run_admin_command("dissolve")
 
     def _send_room_message(self, content: str) -> None:
         """Send a room message from the inline composer."""
@@ -287,6 +191,10 @@ class RoomScreen(Screen[None]):
             self._refresh_room_body()
             return
 
+        if not self._join_room_if_allowed():
+            self._refresh_room_body()
+            return
+
         try:
             self.room_service.say(self.room_name, session["username"], content)
         except Exception as exc:
@@ -296,6 +204,51 @@ class RoomScreen(Screen[None]):
 
         self._status_message = "Message sent."
         self._refresh_room_body()
+
+    def _join_room_if_allowed(self) -> bool:
+        """Join the current room when the active user already has access."""
+
+        session = load_session()
+        if session is None:
+            return False
+
+        room_state = self.room_service.build_room_state(self.room_name)
+        if room_state is None:
+            self._status_message = "This room is not available."
+            return False
+
+        actor_pubkey = (
+            session["pubkey"] if isinstance(session.get("pubkey"), str) else None
+        )
+        if actor_pubkey is None:
+            return False
+        if actor_pubkey in room_state["members"]:
+            return True
+        if actor_pubkey in room_state["banned"]:
+            self._status_message = "You are banned from this room."
+            return False
+
+        has_access = (
+            room_state["type"] == "public"
+            or actor_pubkey == room_state["owner_pubkey"]
+            or actor_pubkey in room_state["invited"]
+        )
+        if not has_access:
+            self._status_message = "You need an invite before joining this room."
+            return False
+
+        try:
+            result = self.room_service.join_room(
+                self.room_name,
+                session["username"],
+            )
+        except Exception as exc:
+            self._status_message = f"Could not join room: {exc}"
+            return False
+
+        if result == "joined":
+            self._status_message = f"Joined room {self.room_name}."
+        return True
 
     def _invite_user(self, raw_target: str) -> None:
         """Invite a user from the admin panel."""
@@ -348,17 +301,6 @@ class RoomScreen(Screen[None]):
             self._status_message = f"Invited {target}."
         self._refresh_room_body()
 
-    def _run_selected_member_action(self, action: str) -> None:
-        """Run an admin action against the currently selected member."""
-
-        member = self._selected_member_card()
-        if member is None:
-            self._status_message = "Select a room member first."
-            self._refresh_room_body()
-            return
-
-        self._run_admin_command(f"{action} {member.username}")
-
     def _run_admin_command(self, raw_command: str) -> None:
         """Run a moderation or room-admin command from the side panel."""
 
@@ -410,6 +352,14 @@ class RoomScreen(Screen[None]):
                 permanent = True
                 continue
             filtered_args.append(item)
+
+        if action == "invite":
+            if not filtered_args:
+                self._status_message = "Use: invite <username|handle>."
+                self._refresh_room_body()
+                return
+            self._invite_user(filtered_args[0])
+            return
 
         if filtered_args:
             target = filtered_args[0]
@@ -488,7 +438,7 @@ class RoomScreen(Screen[None]):
                     self._status_message = f"{target} kicked and banned."
             else:
                 self._status_message = (
-                    "Use mod, unmod, mute, unmute, kick, or dissolve."
+                    "Use invite, mod, unmod, mute, unmute, kick, or dissolve."
                 )
         except Exception as exc:
             self._status_message = f"Room action failed: {exc}"
@@ -515,10 +465,7 @@ class RoomScreen(Screen[None]):
         body = self.query_one("#room-screen-body", Static)
         summary = self.query_one("#room-summary", Static)
         members_list = self.query_one("#room-members-list", ListView)
-        invite_input = self.query_one("#room-invite-input", Input)
         admin_input = self.query_one("#room-admin-input", Input)
-        action_row = self.query_one("#room-action-row", Horizontal)
-        owner_row = self.query_one("#room-owner-row", Horizontal)
 
         if room_state is None:
             body.update("This room is not available.")
@@ -526,10 +473,7 @@ class RoomScreen(Screen[None]):
             self._member_snapshot = None
             self._selected_member_pubkey = None
             members_list.clear()
-            invite_input.display = False
             admin_input.display = False
-            action_row.display = False
-            owner_row.display = False
             self.query_one("#room-admin-status", Static).update(
                 self._status_message or "The room may have expired or been dissolved."
             )
@@ -551,26 +495,21 @@ class RoomScreen(Screen[None]):
         self._refresh_members(room_state, actor_pubkey)
         self._refresh_messages(room_state, actor_username)
 
-        invite_input.display = self._can_invite(room_state, actor_pubkey)
-        admin_input.display = self._can_moderate(room_state, actor_pubkey)
-        if room_state["type"] == "private":
-            if invite_input.display:
-                invite_input.placeholder = "Invite user by username or handle"
-            else:
-                invite_input.placeholder = "Join the room to invite members"
-        else:
-            invite_input.placeholder = "Invites are only needed for private rooms"
+        can_invite = self._can_invite(room_state, actor_pubkey)
+        can_moderate = self._can_moderate(room_state, actor_pubkey)
+        can_manage_mods = self._can_manage_mods(room_state, actor_pubkey)
+        can_dissolve = self._can_dissolve(room_state, actor_pubkey)
+        admin_input.display = can_invite or can_moderate or can_dissolve
 
-        if self._can_manage_mods(room_state, actor_pubkey):
-            admin_input.placeholder = (
-                "Type: mod | unmod | mute | unmute | kick | dissolve"
-            )
-        elif admin_input.display:
-            admin_input.placeholder = "Type: mute | unmute | kick"
+        if can_manage_mods:
+            admin_input.placeholder = "Owner command"
+        elif can_moderate:
+            admin_input.placeholder = "Moderator command"
+        elif can_invite:
+            admin_input.placeholder = "Invite command"
         else:
             admin_input.placeholder = "Owner and moderators can manage this room"
 
-        self._sync_action_controls(room_state, actor_pubkey)
         self._render_admin_status(room_state)
 
     def _refresh_summary(self, room_state: dict[str, object], actor_pubkey: str | None) -> None:
@@ -735,7 +674,7 @@ class RoomScreen(Screen[None]):
         member = self._selected_member_card()
         if member is None:
             if room_state is not None and self._can_invite(room_state, actor_pubkey):
-                status.update("Select a member to inspect, or use the invite box above.")
+                status.update("Select a member to inspect, or run `invite alice` above.")
             else:
                 status.update("Select a member to inspect.")
             return
@@ -757,68 +696,35 @@ class RoomScreen(Screen[None]):
         )
 
         if can_manage_mods:
+            owner_command = "Commands: mod alice | unmod alice | mute alice --perma | unmute alice | kick alice | dissolve"
+            if can_invite:
+                owner_command = "Commands: invite alice | mod alice | unmod alice | mute alice --perma | unmute alice | kick alice | dissolve"
             lines.extend(
                 [
                     "",
-                    "Shortcuts: m=mod, u=unmod, x=mute, z=unmute, k=kick, d=dissolve",
-                    "Admin input also accepts: mod alice | mute alice --perma | dissolve",
+                    owner_command,
                 ]
             )
         elif can_moderate:
+            moderator_command = (
+                "Commands: invite alice | mute alice --perma | unmute alice | kick alice"
+                if can_invite
+                else "Commands: mute alice --perma | unmute alice | kick alice"
+            )
             lines.extend(
                 [
                     "",
-                    "Shortcuts: x=mute, z=unmute, k=kick",
-                    "Admin input also accepts: mute alice --perma | kick alice",
+                    moderator_command,
                 ]
             )
         elif can_invite:
-            lines.extend(["", "You can invite members to this private room from the box above."])
+            lines.extend(["", "Command: invite alice"])
         else:
             lines.extend(
                 ["", "You can read members here. Owner or moderators manage room actions."]
             )
 
         status.update("\n".join(lines))
-
-    def _sync_action_controls(
-        self, room_state: dict[str, object], actor_pubkey: str | None
-    ) -> None:
-        """Show the right room-action buttons for the current actor and selection."""
-
-        action_row = self.query_one("#room-action-row", Horizontal)
-        owner_row = self.query_one("#room-owner-row", Horizontal)
-        mute_button = self.query_one("#room-action-mute", Button)
-        unmute_button = self.query_one("#room-action-unmute", Button)
-        kick_button = self.query_one("#room-action-kick", Button)
-        mod_button = self.query_one("#room-action-mod", Button)
-        unmod_button = self.query_one("#room-action-unmod", Button)
-        dissolve_button = self.query_one("#room-action-dissolve", Button)
-
-        can_moderate = self._can_moderate(room_state, actor_pubkey)
-        can_manage_mods = self._can_manage_mods(room_state, actor_pubkey)
-        can_dissolve = self._can_dissolve(room_state, actor_pubkey)
-        selected_member = self._selected_member_card()
-
-        action_row.display = can_moderate
-        owner_row.display = can_manage_mods or can_dissolve
-
-        no_selection = selected_member is None
-        selected_is_owner = selected_member is not None and "owner" in selected_member.tags
-        selected_is_mod = selected_member is not None and "mod" in selected_member.tags
-        selected_is_muted = selected_member is not None and any(
-            tag.startswith("muted") for tag in selected_member.tags
-        )
-
-        mute_button.disabled = no_selection or selected_is_owner
-        unmute_button.disabled = no_selection or not selected_is_muted
-        kick_button.disabled = no_selection or selected_is_owner
-        mod_button.disabled = no_selection or selected_is_owner or selected_is_mod
-        mod_button.display = can_manage_mods
-        unmod_button.disabled = no_selection or selected_is_owner or not selected_is_mod
-        unmod_button.display = can_manage_mods
-        dissolve_button.disabled = not can_dissolve
-        dissolve_button.display = can_dissolve
 
     def _can_moderate(
         self, room_state: dict[str, object], actor_pubkey: str | None

@@ -1,6 +1,7 @@
 # Beep Relay Setup Guide
 
-This guide shows how to run a Beep relay in real life.
+This guide shows how to run a public Beep relay node for discovery and object
+sync.
 
 ## What A Relay Is
 
@@ -12,14 +13,16 @@ It is just a Beep node that is:
 - reachable on a stable public URL
 - used by other nodes for discovery and sync
 
-Identity still belongs to the user's pubkey. The relay only helps nodes find and exchange objects.
+Identity still belongs to the user's pubkey. The relay only helps nodes find and
+exchange objects that have been replicated to it.
 
 ## What Users Do With It
 
-Once a relay is running publicly, users can add it with:
+Once a relay is running publicly, users can add it with either command:
 
 ```text
 beep relay add https://relay.example.net
+beep network setup --relay https://relay.example.net
 ```
 
 They can then use:
@@ -28,7 +31,8 @@ They can then use:
 beep connect bob#abcdef
 ```
 
-If the relay knows Bob's profile and presence objects, it can help resolve and sync that identity.
+If the relay knows Bob's profile and presence objects, it can help resolve and
+sync that identity.
 
 ## Recommended Deployment Shape
 
@@ -36,10 +40,11 @@ The easiest practical setup is:
 
 1. rent a small VPS
 2. point a domain or subdomain at it
-3. run the Beep node on localhost
-4. expose it through Nginx or Caddy
-5. enable HTTPS
-6. keep it alive with `systemd`
+3. install Beep with the server dependencies
+4. run the Beep node on localhost
+5. expose it through Nginx or Caddy
+6. enable HTTPS
+7. keep it alive with `systemd`
 
 Example final public URL:
 
@@ -76,7 +81,14 @@ Wait for DNS to propagate.
 
 ## Step 3: Install And Run Beep
 
-Clone the Beep project on the server and install its dependencies.
+Clone the Beep project on the server and install the server dependencies:
+
+```text
+python -m venv .venv
+. .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -e ".[server]"
+```
 
 Then run the node server on localhost, for example:
 
@@ -88,6 +100,12 @@ This makes the Beep node reachable locally on:
 
 ```text
 http://127.0.0.1:8000
+```
+
+You can confirm the local node responds with:
+
+```text
+curl http://127.0.0.1:8000/inventory
 ```
 
 ## Step 4: Put A Reverse Proxy In Front
@@ -130,6 +148,12 @@ That gives users a stable HTTPS endpoint like:
 https://relay.example.net
 ```
 
+After HTTPS is enabled, verify the public endpoint:
+
+```text
+curl https://relay.example.net/inventory
+```
+
 ## Step 6: Keep The Relay Running
 
 Use a `systemd` service so the node starts on boot and restarts on failure.
@@ -143,7 +167,7 @@ After=network.target
 
 [Service]
 WorkingDirectory=/opt/beep
-ExecStart=/usr/bin/python3 -m network.node --host 127.0.0.1 --port 8000 --quiet
+ExecStart=/opt/beep/.venv/bin/python -m network.node --host 127.0.0.1 --port 8000 --quiet
 Restart=always
 RestartSec=5
 User=beep
@@ -157,6 +181,12 @@ Then:
 ```text
 sudo systemctl daemon-reload
 sudo systemctl enable --now beep-relay
+```
+
+Check the service logs with:
+
+```text
+sudo journalctl -u beep-relay -f
 ```
 
 ## How Users Discover Each Other Through A Relay
@@ -206,6 +236,8 @@ beep peer add http://192.168.1.50:8000
 Beep now includes policy controls for relay behavior:
 
 ```text
+beep network status
+beep network check
 beep relay policy
 beep relay policy set enabled on
 beep relay policy set strategy prefer-direct
@@ -215,6 +247,7 @@ beep relay policy set autostart on
 beep relay policy set presence-ttl 86400
 beep relay policy set presence-refresh 900
 beep relay policy set public-endpoint https://relay.example.net
+beep relay policy set public-endpoint clear
 ```
 
 ### Strategy Meanings
@@ -226,9 +259,11 @@ beep relay policy set public-endpoint https://relay.example.net
 - `relay-first`
   - prefer relay-assisted discovery and sync before direct peers
 
-## Important Current Limitation
+## Public Endpoint Policy
 
-Presence publication can now advertise a configured public endpoint instead of the local runtime URL. For a truly public relay or public self-hosted node, set that explicitly:
+Presence publication can advertise a configured public endpoint instead of the
+local runtime URL. Set this on a relay or self-hosted public node when other
+users should discover that public URL as your reachable endpoint:
 
 ```text
 beep relay policy set public-endpoint https://relay.example.net
@@ -246,3 +281,11 @@ That means the most reliable public deployment model is:
 - reverse proxy
 - always-on node
 - users add that public URL explicitly
+
+## Operational Notes
+
+- A relay is only useful for objects it has received through sync.
+- Keep the relay process online and reachable over HTTPS.
+- Use `beep network check` from a client node after adding the relay.
+- Direct peers and relays can be used together; the active strategy decides the
+  order.

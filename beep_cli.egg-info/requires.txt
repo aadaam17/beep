@@ -1,9 +1,13 @@
 cryptography
 requests
-fastapi
-uvicorn
-textual
 
 [dev]
 build
 twine
+
+[server]
+fastapi
+uvicorn
+
+[ui]
+textual
