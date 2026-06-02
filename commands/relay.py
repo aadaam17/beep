@@ -51,7 +51,7 @@ def _dispatch_policy(parts: list[str]) -> None:
         print("[RELAY] Network policy")
         print(f" - relay enabled: {'on' if policy['relay_enabled'] else 'off'}")
         print(f" - strategy: {policy['strategy']}")
-        print(f" - node autostart: {'on' if policy['node_autostart'] else 'off'}")
+        print(f" - node mode: {'on' if policy['node_autostart'] else 'off'}")
         print(f" - presence ttl: {policy['presence_ttl_seconds']}s")
         print(f" - presence refresh: {policy['presence_refresh_seconds']}s")
         print(
@@ -86,7 +86,7 @@ def _dispatch_policy(parts: list[str]) -> None:
 
     if key == "autostart" and value in {"on", "off"}:
         policy = update_network_policy(node_autostart=value == "on")
-        print(f"[RELAY] node autostart: {'on' if policy['node_autostart'] else 'off'}")
+        print(f"[RELAY] node mode: {'on' if policy['node_autostart'] else 'off'}")
         return
 
     if key in {"presence-ttl", "presence-refresh"}:

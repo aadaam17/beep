@@ -149,13 +149,15 @@ def get_prompt() -> str:
 
 
 def _ensure_background_node_for_session() -> None:
-    """Silently ensure a local background node exists for the active session."""
+    """Ensure node-mode behavior for the active session."""
 
     if state.user is None or state.pubkey is None:
         return
     runtime = ensure_background_node(state.user, state.pubkey)
     if runtime is not None and isinstance(runtime["url"], str):
         publish_local_presence(state.user, runtime["url"])
+        return
+    node.maybe_prompt_node_mode(state)
 
 def initialize_session(*, announce: bool = True) -> None:
     """Refresh persisted session state before running commands."""

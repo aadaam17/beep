@@ -110,12 +110,18 @@ class CommandCompatibilityTests(unittest.TestCase):
         mock_sync.assert_called_once_with(verbose=True)
         self.assertIn("[SYNC] done: 4 imported from 2 peer(s)", output.getvalue())
 
+    @patch("commands.node._ensure_server_dependencies", return_value=True)
     @patch("commands.node.run_node")
-    def test_node_command_uses_canonical_node_runner(self, mock_run_node):
+    def test_node_command_uses_canonical_node_runner(
+        self,
+        mock_run_node,
+        mock_server_dependencies,
+    ):
         state = SimpleNamespace(user="alice", pubkey="pubkey_1")
 
         node_dispatch("node", "run --port 9001", state)
 
+        mock_server_dependencies.assert_called_once_with()
         mock_run_node.assert_called_once_with(
             port=9001,
             session_username="alice",

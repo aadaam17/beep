@@ -9,6 +9,7 @@ import socket
 import subprocess
 import sys
 import time
+import signal
 from pathlib import Path
 from typing import TypedDict, cast
 
@@ -92,6 +93,21 @@ def clear_node_runtime() -> None:
         pass
 
 
+def stop_background_node() -> bool:
+    """Best-effort stop for the persisted background node process."""
+
+    runtime = load_node_runtime()
+    clear_node_runtime()
+    if runtime is None:
+        return False
+
+    try:
+        os.kill(runtime["pid"], signal.SIGTERM)
+    except OSError:
+        return False
+    return True
+
+
 def ensure_background_node(username: str, pubkey: str) -> NodeRuntimeRecord | None:
     """Ensure a silent local background node is running for the active session."""
 
@@ -128,6 +144,15 @@ def ensure_background_node(username: str, pubkey: str) -> NodeRuntimeRecord | No
             return runtime
 
     return None
+
+
+def node_runtime_reachable(runtime: NodeRuntimeRecord | None = None) -> bool:
+    """Return whether the tracked node runtime is reachable."""
+
+    record = load_node_runtime() if runtime is None else runtime
+    if record is None:
+        return False
+    return _node_is_reachable(record["url"])
 
 
 def _spawn_background_node(

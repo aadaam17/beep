@@ -15,6 +15,7 @@ class NetworkPolicy(TypedDict):
 
     relay_enabled: bool
     node_autostart: bool
+    node_prompted: bool
     strategy: NetworkStrategy
     presence_ttl_seconds: int
     presence_refresh_seconds: int
@@ -24,7 +25,8 @@ class NetworkPolicy(TypedDict):
 POLICY_FILE = Path.home() / ".beep" / "network_policy.json"
 DEFAULT_POLICY: NetworkPolicy = {
     "relay_enabled": True,
-    "node_autostart": True,
+    "node_autostart": False,
+    "node_prompted": False,
     "strategy": "prefer-direct",
     "presence_ttl_seconds": 24 * 60 * 60,
     "presence_refresh_seconds": 15 * 60,
@@ -56,6 +58,10 @@ def load_network_policy() -> NetworkPolicy:
     node_autostart = data.get("node_autostart")
     if isinstance(node_autostart, bool):
         policy["node_autostart"] = node_autostart
+
+    node_prompted = data.get("node_prompted")
+    if isinstance(node_prompted, bool):
+        policy["node_prompted"] = node_prompted
 
     strategy = data.get("strategy")
     if strategy in {"prefer-direct", "direct-only", "relay-first"}:
@@ -95,6 +101,10 @@ def update_network_policy(**changes: object) -> NetworkPolicy:
     node_autostart = changes.get("node_autostart")
     if isinstance(node_autostart, bool):
         policy["node_autostart"] = node_autostart
+
+    node_prompted = changes.get("node_prompted")
+    if isinstance(node_prompted, bool):
+        policy["node_prompted"] = node_prompted
 
     strategy = changes.get("strategy")
     if strategy in {"prefer-direct", "direct-only", "relay-first"}:

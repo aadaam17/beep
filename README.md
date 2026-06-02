@@ -301,6 +301,9 @@ beep relay remove <url>
 beep relay list
 beep relay policy
 beep sync
+beep node status
+beep node enable
+beep node disable
 beep node run [--port <port>]
 ```
 
@@ -311,7 +314,6 @@ beep relay policy set enabled on
 beep relay policy set strategy prefer-direct
 beep relay policy set strategy direct-only
 beep relay policy set strategy relay-first
-beep relay policy set autostart on
 beep relay policy set presence-ttl 86400
 beep relay policy set presence-refresh 900
 beep relay policy set public-endpoint https://relay.example.net
@@ -343,8 +345,18 @@ object exchange. Run it manually with:
 python -m network.node --host 0.0.0.0 --port 8000
 ```
 
-The CLI can also start a policy-controlled background node after login or
-registration. The node exposes endpoints for:
+Beep runs in client mode by default. Capable devices are prompted before node
+mode is enabled. Mobile or low-capacity environments can stay client-only, and
+users can still override the recommendation with `beep node enable`.
+Hosting can be controlled with:
+
+```text
+beep node enable
+beep node disable
+beep node status
+```
+
+The node exposes endpoints for:
 
 - Listing object IDs
 - Fetching objects by ID

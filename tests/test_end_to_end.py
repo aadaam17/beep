@@ -727,6 +727,7 @@ class EndToEndFlowTests(IsolatedStorageTestCase):
         mock_reachable,
     ):
         mock_popen.return_value.pid = 4242
+        storage_network_policy.update_network_policy(node_autostart=True)
 
         runtime = network_node_manager.ensure_background_node("alice", "pubkey_1")
 

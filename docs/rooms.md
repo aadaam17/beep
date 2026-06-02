@@ -47,7 +47,7 @@ beep invite <username>
 In the room UI command input:
 
 ```text
-invite alice
+invite <user>
 ```
 
 Invites create signed room events. An invited user still needs a join event
@@ -71,18 +71,18 @@ Room messages are encrypted for current room recipients.
 Owner-only commands:
 
 ```text
-mod alice
-unmod alice
+mod <user>
+unmod <user>
 dissolve
 ```
 
 Owner and moderator commands:
 
 ```text
-mute alice
-mute alice --perma
-unmute alice
-kick alice
+mute <user>
+mute <user> --perma
+unmute <user>
+kick <user>
 ```
 
 The room UI exposes one command input for room administration. It shows role
@@ -91,19 +91,19 @@ appropriate helper text:
 Owner:
 
 ```text
-Commands: invite alice | mod alice | unmod alice | mute alice --perma | unmute alice | kick alice | dissolve
+Commands: invite <user> | mod <user> | unmod <user> | mute <user> --perma | unmute <user> | kick <user> | dissolve
 ```
 
 Moderator:
 
 ```text
-Commands: invite alice | mute alice --perma | unmute alice | kick alice
+Commands: invite <user> | mute <user> --perma | unmute <user> | kick <user>
 ```
 
 Invite-only private-room member:
 
 ```text
-Command: invite alice
+Command: invite <user>
 ```
 
 ## Ephemeral Rooms

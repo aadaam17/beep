@@ -674,7 +674,7 @@ class RoomScreen(Screen[None]):
         member = self._selected_member_card()
         if member is None:
             if room_state is not None and self._can_invite(room_state, actor_pubkey):
-                status.update("Select a member to inspect, or run `invite alice` above.")
+                status.update("Select a member to inspect, or run `invite <user>` above.")
             else:
                 status.update("Select a member to inspect.")
             return
@@ -696,9 +696,15 @@ class RoomScreen(Screen[None]):
         )
 
         if can_manage_mods:
-            owner_command = "Commands: mod alice | unmod alice | mute alice --perma | unmute alice | kick alice | dissolve"
+            owner_command = (
+                "Commands: mod <user> | unmod <user> | mute <user> --perma | "
+                "unmute <user> | kick <user> | dissolve"
+            )
             if can_invite:
-                owner_command = "Commands: invite alice | mod alice | unmod alice | mute alice --perma | unmute alice | kick alice | dissolve"
+                owner_command = (
+                    "Commands: invite <user> | mod <user> | unmod <user> | "
+                    "mute <user> --perma | unmute <user> | kick <user> | dissolve"
+                )
             lines.extend(
                 [
                     "",
@@ -707,9 +713,9 @@ class RoomScreen(Screen[None]):
             )
         elif can_moderate:
             moderator_command = (
-                "Commands: invite alice | mute alice --perma | unmute alice | kick alice"
+                "Commands: invite <user> | mute <user> --perma | unmute <user> | kick <user>"
                 if can_invite
-                else "Commands: mute alice --perma | unmute alice | kick alice"
+                else "Commands: mute <user> --perma | unmute <user> | kick <user>"
             )
             lines.extend(
                 [
@@ -718,7 +724,7 @@ class RoomScreen(Screen[None]):
                 ]
             )
         elif can_invite:
-            lines.extend(["", "Command: invite alice"])
+            lines.extend(["", "Command: invite <user>"])
         else:
             lines.extend(
                 ["", "You can read members here. Owner or moderators manage room actions."]

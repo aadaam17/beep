@@ -28,6 +28,9 @@ beep relay policy
 beep network status
 beep network check
 beep sync
+beep node status
+beep node enable
+beep node disable
 ```
 
 ## Node Endpoints

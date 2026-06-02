@@ -99,10 +99,13 @@ Node
   relay remove <url>                     Remove a relay node
   relay list                             Show configured relays
   relay policy                           Show network and relay policy
-  relay policy set ...                   Update relay strategy, autostart, presence timings, or public endpoint
+  relay policy set ...                   Update relay strategy, presence timings, or public endpoint
   sync                                   Synchronize objects with peers
+  node status                            Show node-mode policy and runtime status
+  node enable                            Enable hosting on this device
+  node disable                           Disable hosting and stop tracked background node
   node run [--port <p>]                  Run public/manual local node
-  login/register                         Auto-start silent local background node (policy-controlled)
+  login/register                         Prompt capable devices before enabling node mode
   storage status [--reason <reason>]     Show retention summary
   storage inspect <object_id>            Show why an object is retained
   storage prune [--apply]                Dry-run or apply pruning

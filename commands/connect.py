@@ -157,7 +157,7 @@ def _print_local_handle(state: CommandState) -> None:
     print(
         f"[CONNECT] Network strategy: {policy['strategy']} | "
         f"relay {'on' if policy['relay_enabled'] else 'off'} | "
-        f"autostart {'on' if policy['node_autostart'] else 'off'}"
+        f"node mode {'on' if policy['node_autostart'] else 'off'}"
     )
     print(
         f"[CONNECT] Peers: {len(peers)} | Relays: {len(relays)} | "

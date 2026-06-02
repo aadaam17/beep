@@ -238,12 +238,13 @@ Beep now includes policy controls for relay behavior:
 ```text
 beep network status
 beep network check
+beep node status
+beep node enable
 beep relay policy
 beep relay policy set enabled on
 beep relay policy set strategy prefer-direct
 beep relay policy set strategy direct-only
 beep relay policy set strategy relay-first
-beep relay policy set autostart on
 beep relay policy set presence-ttl 86400
 beep relay policy set presence-refresh 900
 beep relay policy set public-endpoint https://relay.example.net

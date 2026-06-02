@@ -137,8 +137,10 @@ def dispatch(cmd: str, args: str, state: CommandState) -> None:
             result = fs.leave_room(room_name, user_name)
             print(f"Leaving room: {room_name}")
         except ValueError as e:
-            print(f"Error: {e}")
-            return
+            if str(e) != "Room not found":
+                print(f"Error: {e}")
+                return
+            print(f"Leaving room: {room_name} (room is no longer available)")
         state.exit_room()
         return
 

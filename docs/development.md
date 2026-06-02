@@ -40,6 +40,17 @@ Manual node runtime:
 python -m network.node --host 0.0.0.0 --port 8000
 ```
 
+Client mode is the default. Beep checks basic device capacity before prompting
+for node mode, including mobile/Termux-like environments, CPU count, memory,
+free storage, Python version, and local socket binding. Optional hosting can be
+enabled manually with:
+
+```bash
+beep node enable
+beep node status
+beep node disable
+```
+
 ## Tests
 
 Run all tests:
