@@ -1,7 +1,7 @@
 import unittest
 
 from core.schemas import validate_object_schema
-from core.verify import verify_object
+from core.verify import _protocol_is_supported, verify_object
 
 
 class SchemaValidationTests(unittest.TestCase):
@@ -102,6 +102,32 @@ class SchemaValidationTests(unittest.TestCase):
         }
 
         self.assertFalse(verify_object(obj))
+
+    def test_protocol_metadata_accepts_legacy_unversioned_objects(self):
+        obj = {
+            "id": "abc",
+            "type": "post",
+            "author": "00" * 32,
+            "timestamp": 1,
+            "content": "hello",
+            "signature": "11" * 64,
+            "meta": {},
+        }
+
+        self.assertTrue(_protocol_is_supported(obj))
+
+    def test_protocol_metadata_rejects_unsupported_versions(self):
+        obj = {
+            "id": "abc",
+            "type": "post",
+            "author": "00" * 32,
+            "timestamp": 1,
+            "content": "hello",
+            "signature": "11" * 64,
+            "meta": {"protocol": "beep-object-v1", "protocol_version": 999},
+        }
+
+        self.assertFalse(_protocol_is_supported(obj))
 
 
 if __name__ == "__main__":

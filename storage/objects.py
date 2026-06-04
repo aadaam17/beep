@@ -3,12 +3,12 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Literal, TypeGuard, TypedDict, cast
 
 from core.types import BeepObjectRecord, ObjectSerializable
 from core.verify import verify_object
+from storage.atomic import atomic_write_json, read_json_with_backup
 
 STORAGE_DIR = Path.home() / ".beep" / "beep_storage"
 OBJECTS_DIR = STORAGE_DIR / "objects"
@@ -87,8 +87,7 @@ def save_object(
     if path.exists():
         return False
 
-    with path.open("w", encoding="utf-8") as file_handle:
-        json.dump(object_record, file_handle, indent=2)
+    atomic_write_json(path, object_record, indent=2)
 
     _auto_pin_retained_object(object_record)
 
@@ -123,13 +122,8 @@ def list_objects() -> list[str]:
 def load_pins() -> dict[str, str]:
     """Load the object pin registry."""
 
-    if not PINS_FILE.exists():
-        return {}
-
-    try:
-        with PINS_FILE.open("r", encoding="utf-8") as file_handle:
-            data = json.load(file_handle)
-    except json.JSONDecodeError:
+    data = read_json_with_backup(PINS_FILE, default={})
+    if data is None:
         return {}
 
     if not isinstance(data, dict):
@@ -145,8 +139,7 @@ def _save_pins(pins: dict[str, str]) -> None:
     """Persist the object pin registry."""
 
     PINS_FILE.parent.mkdir(parents=True, exist_ok=True)
-    with PINS_FILE.open("w", encoding="utf-8") as file_handle:
-        json.dump(pins, file_handle, indent=2)
+    atomic_write_json(PINS_FILE, pins, indent=2)
 
 
 def pin_object(obj_id: str, reason: str = "retain") -> bool:

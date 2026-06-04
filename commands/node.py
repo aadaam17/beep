@@ -10,6 +10,8 @@ from network.node_capability import detect_node_capability
 from network.node_manager import (
     ensure_background_node,
     load_node_runtime,
+    node_log_path,
+    node_log_tail,
     node_runtime_reachable,
     stop_background_node,
 )
@@ -98,9 +100,13 @@ def _status() -> None:
     )
     if runtime is None:
         print(" - local node: not running")
+        tail = node_log_tail(max_lines=3)
+        if tail:
+            print(f" - last log: {tail[-1]}")
     else:
         health = "reachable" if node_runtime_reachable(runtime) else "unreachable"
         print(f" - local node: {runtime['url']} (pid {runtime['pid']}, {health})")
+    print(f" - log file: {node_log_path()}")
 
 
 def _enable(state: CommandState) -> None:
@@ -130,6 +136,17 @@ def _enable(state: CommandState) -> None:
     runtime = ensure_background_node(state.user, state.pubkey)
     if runtime is None:
         print("[NODE] Could not start background node.")
+        print(f"[NODE] Log file: {node_log_path()}")
+        tail = node_log_tail()
+        if tail:
+            print("[NODE] Last node log lines:")
+            for line in tail:
+                print(f"  {line}")
+        else:
+            print(
+                "[NODE] No node log was written. "
+                "Try: beep node run --port 8000"
+            )
         return
 
     publish_local_presence(state.user, runtime["url"])

@@ -265,6 +265,17 @@ class EndToEndFlowTests(IsolatedStorageTestCase):
         recovered_seed = crypto_mnemonic.mnemonic_to_seed(phrase)
 
         self.assertEqual(root_seed, recovered_seed)
+        self.assertEqual(len(phrase.split()), 24)
+
+    def test_legacy_v1_mnemonic_round_trip_still_works(self):
+        self.create_user("alice")
+
+        root_seed = crypto_seed.load_or_create_root_seed("alice")
+        phrase = crypto_mnemonic.seed_to_mnemonic_v1(root_seed)
+        recovered_seed = crypto_mnemonic.mnemonic_to_seed(phrase)
+
+        self.assertEqual(root_seed, recovered_seed)
+        self.assertEqual(len(phrase.split()), 56)
 
     def test_backup_file_round_trip_restores_identity_and_objects(self):
         alice = self.create_user("alice")

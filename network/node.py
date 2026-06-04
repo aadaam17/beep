@@ -4,9 +4,11 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import threading
 import time
+from collections import defaultdict, deque
 from typing import Any
 
 import uvicorn
@@ -30,6 +32,9 @@ from storage.session import session_matches
 
 app = FastAPI()
 store = ObjectStore()
+MAX_OBJECT_BYTES = int(os.getenv("BEEP_MAX_OBJECT_BYTES", str(256 * 1024)))
+MAX_POSTS_PER_MINUTE = int(os.getenv("BEEP_MAX_POSTS_PER_MINUTE", "60"))
+_POST_WINDOWS: dict[str, deque[float]] = defaultdict(deque)
 
 
 @app.get("/objects")
@@ -47,9 +52,27 @@ def get_object(obj_id: str):
 
 @app.post("/object")
 async def receive_object_route(request: Request):
-    obj = await request.json()
+    if not _request_allowed(request):
+        return JSONResponse({"error": "rate limited"}, status_code=429)
 
-    if not obj:
+    content_length = request.headers.get("content-length")
+    if content_length is not None:
+        try:
+            if int(content_length) > MAX_OBJECT_BYTES:
+                return JSONResponse({"error": "payload too large"}, status_code=413)
+        except ValueError:
+            return JSONResponse({"error": "invalid content length"}, status_code=400)
+
+    body = await request.body()
+    if len(body) > MAX_OBJECT_BYTES:
+        return JSONResponse({"error": "payload too large"}, status_code=413)
+
+    try:
+        obj = json.loads(body.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return JSONResponse({"error": "invalid JSON"}, status_code=400)
+
+    if not isinstance(obj, dict) or not obj:
         return JSONResponse({"error": "invalid payload"}, status_code=400)
 
     ok = handle_incoming_object(obj)
@@ -57,6 +80,20 @@ async def receive_object_route(request: Request):
         return JSONResponse({"status": "rejected"}, status_code=403)
 
     return {"status": "accepted"}
+
+
+def _request_allowed(request: Request) -> bool:
+    """Apply a small in-memory POST rate limit per remote host."""
+
+    client = request.client.host if request.client else "unknown"
+    now = time.monotonic()
+    window = _POST_WINDOWS[client]
+    while window and now - window[0] > 60:
+        window.popleft()
+    if len(window) >= MAX_POSTS_PER_MINUTE:
+        return False
+    window.append(now)
+    return True
 
 
 # @app.get("/inventory")

@@ -3,10 +3,10 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 from core.types import SessionRecord
+from storage.atomic import atomic_write_json, read_json_with_backup
 from typing import cast, Any
 
 # Backward-compatible paths
@@ -31,9 +31,8 @@ def load_session() -> SessionRecord | None:
     if not path.exists():
         return None
 
-    try:
-        raw_session = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+    raw_session = read_json_with_backup(path)
+    if raw_session is None:
         return None
 
     if not isinstance(raw_session, dict):
@@ -73,10 +72,7 @@ def save_session(username: str, pubkey: str) -> None:
         "pubkey": pubkey,
     }
 
-    SESSION_FILE.write_text(
-        json.dumps(payload, indent=2),
-        encoding="utf-8",
-    )
+    atomic_write_json(SESSION_FILE, payload, indent=2)
 
 
 def clear_session() -> None:

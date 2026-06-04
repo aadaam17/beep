@@ -49,6 +49,8 @@ crypto/keys.py
 crypto/mnemonic.py
 crypto/seed.py
 crypto/sign.py
+crypto/wordlists/beep-v1.txt
+crypto/wordlists/bip39-english.txt
 models/__init__.py
 models/message.py
 models/post.py
@@ -56,6 +58,7 @@ models/room.py
 models/user.py
 network/__init__.py
 network/node.py
+network/node_capability.py
 network/node_manager.py
 network/peers.py
 network/query.py

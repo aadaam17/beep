@@ -74,9 +74,20 @@ Recovery risks:
 
 ## Local Storage
 
-Local state is stored under `~/.beep/`. Files on disk are not all encrypted at
-rest. Backup files are encrypted, but normal local runtime state depends on the
-host machine's filesystem protections.
+Local state is stored under `~/.beep/`. Password records use `scrypt-v1` with a
+per-user salt; older plain SHA-256 records are accepted only for login
+migration and are rewritten after a successful authentication.
+
+Root seed files are encrypted with `seed-file-scrypt-aesgcm-v1` once an
+identity has been unlocked by password. The Ed25519 signing key is derived from
+that seed and is no longer persisted as a separate plaintext private key.
+Atomic writes use companion lock files plus `.bak` files for recovery from
+interrupted writes.
+
+Backup files are encrypted. Some compatibility state can still exist in
+plaintext, especially legacy RSA material restored from old histories. A
+production deployment should either remove the legacy RSA path or encrypt it
+with the same local secret/keychain boundary.
 
 Do not use Beep for high-risk communications or irreplaceable data yet.
 
@@ -84,7 +95,9 @@ Do not use Beep for high-risk communications or irreplaceable data yet.
 
 Room permissions are enforced by replaying signed room events. Private rooms are
 visible in the UI only to the owner, members, and invited users, but replicated
-room objects may still exist on a node that synced them.
+room objects may still exist on a node that synced them. Beep now skips
+auto-pushing private room objects to general peers and relays, but production
+privacy still needs encrypted room metadata or access-aware sync negotiation.
 
 Private room messages are encrypted for current room recipients. Invited users
 must join before sending messages.
@@ -96,3 +109,5 @@ must join before sending messages.
 - Relay trust is availability-oriented, not privacy-oriented.
 - There is no global identity authority.
 - Object retention depends on local policy and peer availability.
+- Public nodes need stronger durable quotas and peer reputation beyond the
+  current request-size and rate-limit guardrails.

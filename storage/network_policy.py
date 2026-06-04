@@ -3,9 +3,10 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Literal, TypedDict, cast
+
+from storage.atomic import atomic_write_json, read_json_with_backup
 
 NetworkStrategy = Literal["prefer-direct", "direct-only", "relay-first"]
 
@@ -37,12 +38,8 @@ DEFAULT_POLICY: NetworkPolicy = {
 def load_network_policy() -> NetworkPolicy:
     """Load the saved network policy or return sane defaults."""
 
-    if not POLICY_FILE.exists():
-        return dict(DEFAULT_POLICY)
-
-    try:
-        raw = json.loads(POLICY_FILE.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+    raw = read_json_with_backup(POLICY_FILE)
+    if raw is None:
         return dict(DEFAULT_POLICY)
 
     if not isinstance(raw, dict):
@@ -85,8 +82,7 @@ def load_network_policy() -> NetworkPolicy:
 def save_network_policy(policy: NetworkPolicy) -> None:
     """Persist a full network policy."""
 
-    POLICY_FILE.parent.mkdir(parents=True, exist_ok=True)
-    POLICY_FILE.write_text(json.dumps(policy, indent=2), encoding="utf-8")
+    atomic_write_json(POLICY_FILE, policy, indent=2)
 
 
 def update_network_policy(**changes: object) -> NetworkPolicy:

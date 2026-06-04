@@ -10,6 +10,7 @@ from typing import TypedDict
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from core.hash import compute_object_id
+from core.protocol import PROTOCOL_NAME, PROTOCOL_VERSION
 from core.signing import sign_object
 from core.types import BeepObjectRecord, ObjectMeta
 from crypto.sign import load_or_create_signing_keys
@@ -106,7 +107,9 @@ class BeepObject:
 
         from storage.profile import get_user_by_pubkey
 
-        object_meta: ObjectMeta = {} if meta is None else meta
+        object_meta: ObjectMeta = {} if meta is None else dict(meta)
+        object_meta.setdefault("protocol", PROTOCOL_NAME)
+        object_meta.setdefault("protocol_version", PROTOCOL_VERSION)
         user = get_user_by_pubkey(author_pubkey)
         if not user:
             raise ValueError("Unknown author")

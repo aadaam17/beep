@@ -51,6 +51,10 @@ beep node status
 beep node disable
 ```
 
+If background startup fails on Termux or another slower device, run
+`beep node status` and inspect the reported node log. The startup wait can be
+increased with `BEEP_NODE_STARTUP_TIMEOUT=<seconds>`.
+
 ## Tests
 
 Run all tests:

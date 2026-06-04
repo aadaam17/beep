@@ -82,6 +82,11 @@ def push_object_to_peers(
 ) -> int:
     """Push a stored object to all known peers."""
 
+    if not _object_is_publicly_replicable(obj):
+        if verbose:
+            print("[SYNC] skipped private room object")
+        return 0
+
     peer_list = peers if peers is not None else load_network_targets()
     return sum(1 for peer in peer_list if push_object(peer, obj, verbose=verbose))
 
@@ -329,3 +334,33 @@ def _looks_like_object(payload: object) -> bool:
         return False
     required_keys = {"type", "author", "content", "timestamp", "meta"}
     return required_keys.issubset(payload)
+
+
+def _object_is_publicly_replicable(obj: BeepObjectRecord) -> bool:
+    """Return whether an object can be pushed to general peers/relays."""
+
+    obj_type = obj.get("type")
+    meta = obj.get("meta")
+    if not isinstance(meta, dict):
+        return False
+
+    if obj_type == "room":
+        return not bool(meta.get("private"))
+
+    if obj_type not in {"room_event", "room_message"}:
+        return True
+
+    room_id = meta.get("room")
+    if not isinstance(room_id, str) or not room_id:
+        return True
+
+    try:
+        from storage.room_service import RoomService
+
+        room = RoomService().build_room_state(room_id)
+    except Exception:
+        return False
+
+    if room is None:
+        return False
+    return room.get("type") != "private"

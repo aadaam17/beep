@@ -16,6 +16,7 @@ decentralized social protocol.
 - Local-first storage under the user's home directory
 - Direct peer sync and relay-assisted discovery
 - Encrypted direct messages and room messages
+- Scrypt-backed local password storage and encrypted root seed files
 - Identity Root Object (IRO) recovery using encrypted backup files or mnemonic
   seed recovery
 - Classic command shell plus an optional Textual terminal UI
@@ -196,6 +197,11 @@ followed-user objects, local chat and room history, recovery-critical objects,
 and explicit pins. Disposable replicated objects can be inspected or pruned with
 the storage commands.
 
+Local password hashes use `scrypt-v1` with per-user salts. Root seed files are
+encrypted after password unlock, and signing keys are derived from the seed
+rather than kept as separate plaintext private-key files. JSON state is written
+with file locks, atomic replacement, and companion `.bak` recovery files.
+
 ## Command Reference
 
 ### Identity and Recovery
@@ -213,6 +219,9 @@ beep restore --file <path>
 beep restore --mnemonic "<phrase>" -p <password>
 beep restore recover
 ```
+
+Mnemonic backups now use the v2 24-word format backed by the BIP39 English
+2048-word list. Legacy 56-word Beep v1 phrases remain restorable.
 
 ### Feed, Posts, and Profiles
 
@@ -356,6 +365,10 @@ beep node disable
 beep node status
 ```
 
+On slower mobile environments such as Termux, node startup can take longer than
+desktop startup. If `beep node enable` cannot start the background node, check
+the log path shown by `beep node status`.
+
 The node exposes endpoints for:
 
 - Listing object IDs
@@ -365,6 +378,14 @@ The node exposes endpoints for:
 - Querying objects by author or type
 - Recent object listing
 - Identity resolution by username or handle
+
+Incoming object POSTs are bounded by request-size and per-client rate limits.
+Use `BEEP_MAX_OBJECT_BYTES` and `BEEP_MAX_POSTS_PER_MINUTE` to tune those
+defaults for a relay deployment.
+
+Private room objects are not auto-pushed to general peers or relays. This
+reduces accidental metadata leakage, but production private rooms still need
+encrypted metadata or access-aware sync.
 
 ## Architecture
 

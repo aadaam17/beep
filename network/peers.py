@@ -1,10 +1,11 @@
 # network/peers.py
 """Peer management for known network endpoints."""
 
-import json
 from pathlib import Path
 from typing import Iterable
 from urllib.parse import urlparse, urlunparse
+
+from storage.atomic import atomic_write_json, read_json_with_backup
 
 PEER_FILE = Path.home() / ".beep" / "peers.json"
 PEER_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -40,13 +41,8 @@ def load_peers() -> list[str]:
     if not PEER_FILE.exists():
         return []
 
-    raw = PEER_FILE.read_text().strip()
-    if not raw:
-        return []
-
-    try:
-        peers = json.loads(raw)
-    except json.JSONDecodeError:
+    peers = read_json_with_backup(PEER_FILE, default=[])
+    if peers is None:
         return []
 
     if not isinstance(peers, list):
@@ -84,7 +80,7 @@ def save_peers(peers: Iterable[str]) -> None:
         seen.add(candidate)
         normalized.append(candidate)
 
-    PEER_FILE.write_text(json.dumps(normalized, indent=2))
+    atomic_write_json(PEER_FILE, normalized, indent=2)
 
 
 def add_peer(peer_url: str) -> str:

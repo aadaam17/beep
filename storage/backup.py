@@ -24,6 +24,7 @@ from storage.crypto import (
     load_or_create_exchange_keys,
     pubkey_to_str,
 )
+from storage.atomic import atomic_write_bytes, atomic_write_text, read_json_with_backup
 from storage.iro import decrypt_iro, get_latest_iro
 from storage.objects import get_object, save_object
 from storage.profile import USER_STORAGE_FILE, get_user, load_users, save_users
@@ -84,7 +85,7 @@ def create_backup_file(username: str, output_path: str, password: str) -> str:
     encrypted = _encrypt_payload(payload, password)
     backup_path = Path(output_path).expanduser()
     backup_path.parent.mkdir(parents=True, exist_ok=True)
-    backup_path.write_text(json.dumps(encrypted, indent=2), encoding="utf-8")
+    atomic_write_text(backup_path, json.dumps(encrypted, indent=2), encoding="utf-8")
     return str(backup_path)
 
 
@@ -106,18 +107,17 @@ def import_backup_file(input_path: str, password: str) -> dict[str, object]:
     RSA_USER_DIR.mkdir(parents=True, exist_ok=True)
     USER_STORAGE_FILE.parent.mkdir(parents=True, exist_ok=True)
 
-    (SEED_DIR / f"{username}.seed").write_bytes(bytes.fromhex(payload["root_seed"]))
-    (SIGN_DIR / f"{username}_ed25519.key").write_bytes(
-        bytes.fromhex(payload["signing_private"])
-    )
+    atomic_write_bytes(SEED_DIR / f"{username}.seed", bytes.fromhex(payload["root_seed"]))
 
     rsa_private_pem = payload.get("rsa_private_pem")
     rsa_public_pem = payload.get("rsa_public_pem")
     if isinstance(rsa_private_pem, str) and isinstance(rsa_public_pem, str):
-        (RSA_USER_DIR / f"{username}_rsa_priv.pem").write_bytes(
+        atomic_write_bytes(
+            RSA_USER_DIR / f"{username}_rsa_priv.pem",
             bytes.fromhex(rsa_private_pem)
         )
-        (RSA_USER_DIR / f"{username}_rsa_pub.pem").write_bytes(
+        atomic_write_bytes(
+            RSA_USER_DIR / f"{username}_rsa_pub.pem",
             bytes.fromhex(rsa_public_pem)
         )
 
@@ -203,7 +203,7 @@ def _decrypt_payload(encrypted: EncryptedBackupRecord, password: str) -> BackupP
 def _load_encrypted_backup(path: Path) -> EncryptedBackupRecord:
     """Load and validate an encrypted backup file record."""
 
-    raw = json.loads(path.read_text(encoding="utf-8"))
+    raw = read_json_with_backup(path)
     if not isinstance(raw, dict):
         raise ValueError("Invalid backup file")
     kdf = raw.get("kdf")

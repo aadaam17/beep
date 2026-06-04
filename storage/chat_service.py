@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import hashlib
-import json
 from pathlib import Path
 
 from core.identity import resolve_username
@@ -15,6 +14,7 @@ from storage.crypto import (
     decrypt_private_message,
     encrypt_for_recipients,
 )
+from storage.atomic import atomic_write_json, read_json_with_backup
 from storage.objects import query_objects, save_object
 from storage.profile import get_user, get_user_by_pubkey
 
@@ -208,11 +208,8 @@ class ChatService:
     def _chat_index(self) -> dict[str, str]:
         """Load the local chat peer index."""
 
-        if not CHAT_INDEX_FILE.exists():
-            return {}
-        try:
-            raw = json.loads(CHAT_INDEX_FILE.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:
+        raw = read_json_with_backup(CHAT_INDEX_FILE, default={})
+        if raw is None:
             return {}
         if not isinstance(raw, dict):
             return {}
@@ -229,7 +226,7 @@ class ChatService:
         if index.get(chat_id) == peer_username:
             return
         index[chat_id] = peer_username
-        CHAT_INDEX_FILE.write_text(json.dumps(index, indent=4), encoding="utf-8")
+        atomic_write_json(CHAT_INDEX_FILE, index, indent=4)
 
 
 def _string_meta_value(obj: dict[str, object], key: str) -> str | None:

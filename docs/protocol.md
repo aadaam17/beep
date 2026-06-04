@@ -31,14 +31,38 @@ The `id` is the SHA-256 hash of that canonical JSON payload with sorted keys and
 compact separators. The signature is an Ed25519 signature over the same
 canonical payload. The signature itself is not part of the object ID.
 
+## Protocol Version
+
+New objects include signed protocol metadata:
+
+```text
+meta.protocol         beep-object-v1
+meta.protocol_version 1
+```
+
+`core/protocol.py` defines the supported protocol versions. Version metadata is
+part of the canonical payload, so changing it changes the object ID and
+signature. Legacy objects without explicit version metadata remain accepted, but
+future objects with unknown protocol names or unsupported versions are rejected.
+
+Migration policy:
+
+- Add new optional fields without changing `protocol_version` when old nodes can
+  safely ignore them.
+- Increment `protocol_version` for incompatible envelope, hashing, signing, or
+  semantic schema changes.
+- Keep compatibility tests for legacy unversioned objects and all supported
+  protocol versions.
+
 ## Verification
 
 Before an object is stored or accepted from a peer, Beep verifies:
 
 1. Required fields are present.
 2. The object type-specific schema is valid.
-3. The object ID matches the canonical unsigned payload.
-4. The signature verifies against the `author` public key.
+3. Explicit protocol metadata is supported.
+4. The object ID matches the canonical unsigned payload.
+5. The signature verifies against the `author` public key.
 
 Objects that fail verification are rejected.
 

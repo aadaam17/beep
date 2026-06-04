@@ -14,6 +14,7 @@ from cryptography.hazmat.primitives.asymmetric.rsa import (
 )
 
 from crypto.seed import SEED_VERSION, derive_key_material, load_or_create_root_seed
+from storage.atomic import atomic_write_bytes
 
 USER_DIR = Path.home() / ".beep" / "beep_storage/users"
 USER_DIR.mkdir(parents=True, exist_ok=True)
@@ -53,7 +54,8 @@ def load_or_create_keys(username: str) -> tuple[RSAPrivateKey, RSAPublicKey]:
     )
     public_key = private_key.public_key()
 
-    priv_file.write_bytes(
+    atomic_write_bytes(
+        priv_file,
         private_key.private_bytes(
             encoding=serialization.Encoding.PEM,
             format=serialization.PrivateFormat.PKCS8,
@@ -61,7 +63,8 @@ def load_or_create_keys(username: str) -> tuple[RSAPrivateKey, RSAPublicKey]:
         )
     )
 
-    pub_file.write_bytes(
+    atomic_write_bytes(
+        pub_file,
         public_key.public_bytes(
             encoding=serialization.Encoding.PEM,
             format=serialization.PublicFormat.SubjectPublicKeyInfo,

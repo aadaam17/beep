@@ -23,6 +23,7 @@ from storage.iro import decrypt_iro, decrypt_iro_with_seed, get_latest_iro
 from storage.objects import pinned_objects
 from storage.profile import _rsa_fingerprint, get_user, hash_password, load_users, save_users
 from storage.session import save_session
+from storage.atomic import atomic_write_bytes
 
 
 def restore_from_file(
@@ -91,19 +92,19 @@ def restore_from_mnemonic(
 
     crypto_seed.SEED_DIR.mkdir(parents=True, exist_ok=True)
     crypto_sign.SIGN_DIR.mkdir(parents=True, exist_ok=True)
-    crypto_seed.SEED_DIR.joinpath(f"{restored_username}.seed").write_bytes(root_seed)
-    crypto_sign.SIGN_DIR.joinpath(f"{restored_username}_ed25519.key").write_bytes(
-        crypto_sign.signing_private_bytes_from_seed(root_seed)
-    )
+    crypto_seed.unlock_seed_storage(restored_username, local_password)
+    crypto_seed.store_root_seed(restored_username, root_seed)
 
     legacy_private_hex = iro_payload.get("legacy_rsa_private_pem")
     legacy_public_hex = iro_payload.get("legacy_rsa_public_pem")
     if legacy_private_hex and legacy_public_hex:
         crypto_keys.USER_DIR.mkdir(parents=True, exist_ok=True)
-        crypto_keys.USER_DIR.joinpath(f"{restored_username}_rsa_priv.pem").write_bytes(
+        atomic_write_bytes(
+            crypto_keys.USER_DIR.joinpath(f"{restored_username}_rsa_priv.pem"),
             bytes.fromhex(legacy_private_hex)
         )
-        crypto_keys.USER_DIR.joinpath(f"{restored_username}_rsa_pub.pem").write_bytes(
+        atomic_write_bytes(
+            crypto_keys.USER_DIR.joinpath(f"{restored_username}_rsa_pub.pem"),
             bytes.fromhex(legacy_public_hex)
         )
 

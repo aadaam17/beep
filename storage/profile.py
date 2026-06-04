@@ -4,13 +4,16 @@
 from __future__ import annotations
 
 import hashlib
-import json
+import hmac
+import os
 import uuid
 from pathlib import Path
 from typing import cast
 
+from crypto.seed import unlock_seed_storage
 from core.types import BeepObjectRecord, ObjectMeta, ProfileMeta, UserRecord
 from crypto.sign import load_or_create_signing_keys
+from storage.atomic import atomic_write_json, read_json_with_backup
 from storage.crypto import (
     encryption_key_fingerprint,
     exchange_pubkey_to_str,
@@ -195,10 +198,9 @@ def _normalize_pubkey(users: dict[str, UserRecord]) -> bool:
 def load_users() -> dict[str, UserRecord]:
     """Load and normalize all persisted users."""
 
-    if not USER_STORAGE_FILE.exists():
+    raw = read_json_with_backup(USER_STORAGE_FILE)
+    if raw is None:
         return {}
-
-    raw = json.loads(USER_STORAGE_FILE.read_text(encoding="utf-8"))
     if not isinstance(raw, dict):
         return {}
     raw_users = cast(dict[str, object], raw)
@@ -215,14 +217,45 @@ def load_users() -> dict[str, UserRecord]:
 def save_users(users: dict[str, UserRecord]) -> None:
     """Persist typed user records."""
 
-    USER_STORAGE_FILE.parent.mkdir(parents=True, exist_ok=True)
-    USER_STORAGE_FILE.write_text(json.dumps(users, indent=4), encoding="utf-8")
+    atomic_write_json(USER_STORAGE_FILE, users, indent=4)
 
 
 def hash_password(password: str) -> str:
-    """Hash a password using SHA-256."""
+    """Hash a password using scrypt with a per-user salt."""
 
-    return hashlib.sha256(password.encode("utf-8")).hexdigest()
+    salt = os.urandom(16)
+    digest = hashlib.scrypt(
+        password.encode("utf-8"),
+        salt=salt,
+        n=2**14,
+        r=8,
+        p=1,
+        dklen=32,
+    )
+    return f"scrypt-v1${salt.hex()}${digest.hex()}"
+
+
+def verify_password(password: str, stored_hash: str) -> bool:
+    """Verify a password against current or legacy local password hashes."""
+
+    if stored_hash.startswith("scrypt-v1$"):
+        try:
+            _, salt_hex, digest_hex = stored_hash.split("$", 2)
+            expected = bytes.fromhex(digest_hex)
+            candidate = hashlib.scrypt(
+                password.encode("utf-8"),
+                salt=bytes.fromhex(salt_hex),
+                n=2**14,
+                r=8,
+                p=1,
+                dklen=32,
+            )
+        except (ValueError, TypeError):
+            return False
+        return hmac.compare_digest(candidate, expected)
+
+    legacy = hashlib.sha256(password.encode("utf-8")).hexdigest()
+    return hmac.compare_digest(legacy, stored_hash)
 
 
 def create_user(username: str, password: str) -> UserRecord:
@@ -232,6 +265,7 @@ def create_user(username: str, password: str) -> UserRecord:
     if username in users:
         raise ValueError(f"Username '{username}' already exists")
 
+    unlock_seed_storage(username, password)
     _, pub = load_or_create_signing_keys(username)
     user = _default_user_record(username, pubkey_to_str(pub))
     user["password"] = hash_password(password)
@@ -252,8 +286,13 @@ def authenticate(username: str, password: str) -> UserRecord:
     user = users.get(username)
     if user is None:
         raise ValueError(f"Username '{username}' not found")
-    if user["password"] != hash_password(password):
+    if not verify_password(password, user["password"]):
         raise ValueError("Incorrect password")
+    unlock_seed_storage(username, password)
+    if not user["password"].startswith("scrypt-v1$"):
+        user["password"] = hash_password(password)
+        users[username] = user
+        save_users(users)
     return user
 
 

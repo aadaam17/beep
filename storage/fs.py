@@ -1,11 +1,11 @@
 # storage/fs.py
 """ File system based storage for Beep """
 
-import json
 from pathlib import Path
 from typing import cast
 
 from core.object import BeepObject
+from storage.atomic import atomic_write_json
 from storage.objects import get_object, query_objects, save_object
 from storage.profile import get_user_by_pubkey, update_user
 from storage.chat_service import ChatService
@@ -30,15 +30,13 @@ class BeepFS:
 
     @staticmethod
     def _read_json(path: Path, default: object = None) -> object:
-        if not path.exists():
-            return default
-        with open(path, "r") as f:
-            return json.load(f)
+        from storage.atomic import read_json_with_backup
+
+        return read_json_with_backup(path, default=default)
 
     @staticmethod
     def _write_json(path: Path, data: object) -> None:
-        with open(path, "w") as f:
-            json.dump(data, f, indent=4)
+        atomic_write_json(path, data, indent=4)
 
     def user_exists(self, username: str) -> bool:
         """Check whether a local user record exists for the given username."""

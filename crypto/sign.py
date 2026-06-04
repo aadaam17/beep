@@ -31,18 +31,13 @@ def load_or_create_signing_keys(username: str) -> tuple[Ed25519PrivateKey, Ed255
     priv_file = SIGN_DIR / f"{username}_ed25519.key"
     root_seed = load_or_create_root_seed(username)
     derived_private_bytes = signing_private_bytes_from_seed(root_seed)
+    private_key = Ed25519PrivateKey.from_private_bytes(derived_private_bytes)
 
     if priv_file.exists():
         existing = priv_file.read_bytes()
-        if existing == derived_private_bytes:
-            private_key = Ed25519PrivateKey.from_private_bytes(existing)
-        else:
-            # Migrate older local key storage to deterministic root-seed-derived signing key.
-            priv_file.write_bytes(derived_private_bytes)
-            private_key = Ed25519PrivateKey.from_private_bytes(derived_private_bytes)
-    else:
-        priv_file.write_bytes(derived_private_bytes)
-        private_key = Ed25519PrivateKey.from_private_bytes(derived_private_bytes)
+        if existing != derived_private_bytes:
+            raise ValueError("Stored signing key does not match the root seed")
+        priv_file.unlink()
 
     public_key = private_key.public_key()
     return private_key, public_key

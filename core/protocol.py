@@ -1,0 +1,5 @@
+"""Protocol version constants."""
+
+PROTOCOL_VERSION = 1
+PROTOCOL_NAME = "beep-object-v1"
+SUPPORTED_PROTOCOL_VERSIONS = {PROTOCOL_VERSION}

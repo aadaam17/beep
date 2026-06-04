@@ -65,6 +65,24 @@ Invalid objects are rejected.
 When a new object is stored locally, Beep may push it to configured targets. The
 receiving node verifies the object before storing it.
 
+Private room objects, events, and messages are not auto-pushed to general peers
+or relays. That reduces accidental private-room existence leaks during normal
+replication. It is not a full privacy model: production private rooms still need
+encrypted room metadata or an access-aware sync protocol.
+
+## Abuse Controls
+
+The node applies basic public POST guardrails:
+
+```text
+BEEP_MAX_OBJECT_BYTES       default 262144
+BEEP_MAX_POSTS_PER_MINUTE   default 60
+```
+
+These limits protect the local process from the simplest oversized-body and
+rapid-post abuse. Public relays should still run behind infrastructure-level
+rate limits, request logging, object retention caps, and abuse monitoring.
+
 ## Recovery Sync
 
 Recovery can request specific object IDs from peers. IRO recovery uses:
@@ -87,3 +105,4 @@ objects it has received through sync. See [relay-setup.md](relay-setup.md).
 - Sync currently uses inventory-style scans rather than delta negotiation.
 - Availability depends on configured peers and relays being reachable.
 - Metadata is visible to peers that receive replicated objects.
+- The in-process rate limiter is not a durable peer reputation system.

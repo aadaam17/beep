@@ -1,0 +1,38 @@
+# Beep mnemonic v1 wordlist.
+#
+# This list intentionally preserves the existing 32-word alphabet so current
+# recovery phrases remain compatible. It uses 5 bits per word, which is why v1
+# phrases are 56 words long. A production v2 should move to a larger audited
+# wordlist, such as a 2048-word BIP39-style list, to reduce phrase length.
+acorn
+amber
+anchor
+apple
+ash
+bamboo
+beacon
+berry
+breeze
+brook
+cedar
+cinder
+cliff
+cloud
+copper
+coral
+dawn
+ember
+fern
+flint
+glade
+grove
+harbor
+hazel
+ivory
+juniper
+linen
+maple
+meadow
+moss
+reed
+stone

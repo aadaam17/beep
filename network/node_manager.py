@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import json
 import os
 import socket
 import subprocess
@@ -15,10 +14,13 @@ from typing import TypedDict, cast
 
 import requests
 
+from storage.atomic import atomic_write_json, read_json_with_backup
 from storage.network_policy import node_autostart_enabled
 
 RUNTIME_FILE = Path.home() / ".beep" / "node_runtime.json"
+NODE_LOG_FILE = Path.home() / ".beep" / "node_runtime.log"
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_STARTUP_TIMEOUT_SECONDS = 30.0
 
 
 class NodeRuntimeRecord(TypedDict):
@@ -35,12 +37,8 @@ class NodeRuntimeRecord(TypedDict):
 def load_node_runtime() -> NodeRuntimeRecord | None:
     """Load the persisted local node runtime record if valid."""
 
-    if not RUNTIME_FILE.exists():
-        return None
-
-    try:
-        raw = json.loads(RUNTIME_FILE.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+    raw = read_json_with_backup(RUNTIME_FILE)
+    if raw is None:
         return None
 
     if not isinstance(raw, dict):
@@ -80,8 +78,7 @@ def load_node_runtime() -> NodeRuntimeRecord | None:
 def save_node_runtime(record: NodeRuntimeRecord) -> None:
     """Persist the active local node runtime record."""
 
-    RUNTIME_FILE.parent.mkdir(parents=True, exist_ok=True)
-    RUNTIME_FILE.write_text(json.dumps(record, indent=2), encoding="utf-8")
+    atomic_write_json(RUNTIME_FILE, record, indent=2)
 
 
 def clear_node_runtime() -> None:
@@ -91,6 +88,24 @@ def clear_node_runtime() -> None:
         RUNTIME_FILE.unlink()
     except FileNotFoundError:
         pass
+
+
+def node_log_path() -> Path:
+    """Return the background node log path."""
+
+    return NODE_LOG_FILE
+
+
+def node_log_tail(max_lines: int = 12) -> list[str]:
+    """Return the last few node log lines for diagnostics."""
+
+    if not NODE_LOG_FILE.exists():
+        return []
+    try:
+        lines = NODE_LOG_FILE.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return []
+    return lines[-max_lines:]
 
 
 def stop_background_node() -> bool:
@@ -108,7 +123,12 @@ def stop_background_node() -> bool:
     return True
 
 
-def ensure_background_node(username: str, pubkey: str) -> NodeRuntimeRecord | None:
+def ensure_background_node(
+    username: str,
+    pubkey: str,
+    *,
+    startup_timeout: float | None = None,
+) -> NodeRuntimeRecord | None:
     """Ensure a silent local background node is running for the active session."""
 
     if not node_autostart_enabled():
@@ -138,7 +158,12 @@ def ensure_background_node(username: str, pubkey: str) -> NodeRuntimeRecord | No
             if attempt == 0 and preferred_port is not None
             else _find_free_port()
         )
-        runtime = _spawn_background_node(username, pubkey, port)
+        runtime = _spawn_background_node(
+            username,
+            pubkey,
+            port,
+            startup_timeout=startup_timeout,
+        )
         if runtime is not None:
             save_node_runtime(runtime)
             return runtime
@@ -159,8 +184,10 @@ def _spawn_background_node(
     username: str,
     pubkey: str,
     port: int,
+    *,
+    startup_timeout: float | None = None,
 ) -> NodeRuntimeRecord | None:
-    """Start a detached local node process and wait briefly for readiness."""
+    """Start a detached local node process and wait for readiness."""
 
     command = [
         sys.executable,
@@ -188,16 +215,28 @@ def _spawn_background_node(
         startupinfo = subprocess.STARTUPINFO()
         startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
 
-    process = subprocess.Popen(
-        command,
-        cwd=str(PROJECT_ROOT),
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        stdin=subprocess.DEVNULL,
-        creationflags=creationflags,
-        startupinfo=startupinfo,
-        close_fds=False if os.name == "nt" else True,
-    )
+    NODE_LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with NODE_LOG_FILE.open("a", encoding="utf-8") as log_file:
+        log_file.write(
+            f"\n[{time.strftime('%Y-%m-%d %H:%M:%S')}] "
+            f"starting node on 127.0.0.1:{port}\n"
+        )
+        log_file.flush()
+        try:
+            process = subprocess.Popen(
+                command,
+                cwd=str(PROJECT_ROOT),
+                stdout=log_file,
+                stderr=log_file,
+                stdin=subprocess.DEVNULL,
+                creationflags=creationflags,
+                startupinfo=startupinfo,
+                close_fds=False if os.name == "nt" else True,
+                start_new_session=False if os.name == "nt" else True,
+            )
+        except OSError as exc:
+            log_file.write(f"failed to spawn node process: {exc}\n")
+            return None
 
     runtime: NodeRuntimeRecord = {
         "host": "127.0.0.1",
@@ -208,12 +247,20 @@ def _spawn_background_node(
         "pid": process.pid,
     }
 
-    for _ in range(20):
+    timeout = _startup_timeout_seconds(startup_timeout)
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
         if _node_is_reachable(runtime["url"]):
             return runtime
         if process.poll() is not None:
+            _append_node_log(
+                f"node process exited before readiness "
+                f"(code {process.returncode})"
+            )
             return None
-        time.sleep(0.1)
+        time.sleep(0.25)
+
+    _append_node_log(f"node was not reachable after {timeout:.1f}s")
 
     return None
 
@@ -222,7 +269,7 @@ def _node_is_reachable(base_url: str) -> bool:
     """Return whether the local background node answers health-like requests."""
 
     try:
-        response = requests.get(f"{base_url}/objects", timeout=0.5)
+        response = requests.get(f"{base_url}/objects", timeout=1.0)
     except requests.RequestException:
         return False
     return response.status_code == 200
@@ -235,3 +282,32 @@ def _find_free_port() -> int:
         sock.bind(("127.0.0.1", 0))
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         return int(sock.getsockname()[1])
+
+
+def _startup_timeout_seconds(override: float | None) -> float:
+    """Return the configured startup timeout for background nodes."""
+
+    if override is not None and override > 0:
+        return override
+    raw_value = os.environ.get("BEEP_NODE_STARTUP_TIMEOUT")
+    if raw_value:
+        try:
+            value = float(raw_value)
+        except ValueError:
+            return DEFAULT_STARTUP_TIMEOUT_SECONDS
+        if value > 0:
+            return value
+    return DEFAULT_STARTUP_TIMEOUT_SECONDS
+
+
+def _append_node_log(message: str) -> None:
+    """Append a small diagnostic message to the node log."""
+
+    try:
+        NODE_LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with NODE_LOG_FILE.open("a", encoding="utf-8") as log_file:
+            log_file.write(
+                f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {message}\n"
+            )
+    except OSError:
+        pass

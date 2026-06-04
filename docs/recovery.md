@@ -30,7 +30,6 @@ Encrypted backup payloads contain:
 
 - local user record
 - root seed
-- deterministic signing private key
 - IRO ID and decrypted IRO payload when available
 - referenced objects that are available locally
 - legacy RSA material only when present
@@ -42,6 +41,11 @@ Create a mnemonic:
 ```text
 beep backup create --mnemonic
 ```
+
+New mnemonic phrases use Beep mnemonic v2: 24 words from the BIP39 English
+2048-word list with an 8-bit seed checksum. Legacy Beep v1 phrases are still
+accepted during restore; those phrases are 56 words from the old 32-word Beep
+list.
 
 Restore from a mnemonic:
 

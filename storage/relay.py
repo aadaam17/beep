@@ -3,11 +3,11 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Iterable
 
 from network.peers import normalize_peer_url
+from storage.atomic import atomic_write_json, read_json_with_backup
 from storage.network_policy import order_network_targets
 
 RELAY_FILE = Path.home() / ".beep" / "relays.json"
@@ -20,13 +20,8 @@ def load_relays() -> list[str]:
     if not RELAY_FILE.exists():
         return []
 
-    raw = RELAY_FILE.read_text(encoding="utf-8").strip()
-    if not raw:
-        return []
-
-    try:
-        relays = json.loads(raw)
-    except json.JSONDecodeError:
+    relays = read_json_with_backup(RELAY_FILE, default=[])
+    if relays is None:
         return []
 
     if not isinstance(relays, list):
@@ -63,7 +58,7 @@ def save_relays(relays: Iterable[str]) -> None:
         seen.add(candidate)
         normalized.append(candidate)
 
-    RELAY_FILE.write_text(json.dumps(normalized, indent=2), encoding="utf-8")
+    atomic_write_json(RELAY_FILE, normalized, indent=2)
 
 
 def add_relay(relay_url: str) -> str:
