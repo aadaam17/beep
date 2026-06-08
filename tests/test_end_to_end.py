@@ -1,4 +1,5 @@
 import io
+import asyncio
 import tempfile
 import time
 import unittest
@@ -20,6 +21,7 @@ from crypto import sign as crypto_sign
 from network import node as network_node
 from network import node_manager as network_node_manager
 from network import peers as network_peers
+from network import reachability as network_reachability
 from network import sync as network_sync
 from storage import network_policy as storage_network_policy
 from storage import relay as storage_relay
@@ -686,6 +688,235 @@ class EndToEndFlowTests(IsolatedStorageTestCase):
             storage_presence.get_presence_endpoint(alice["pubkey"]),
             "https://relay.example.net",
         )
+
+    def test_forged_object_with_tampered_content_is_rejected(self):
+        alice = self.create_user("alice")
+        obj = BeepObject.create_object(
+            type_="post",
+            author_pubkey=alice["pubkey"],
+            content="original",
+            meta={},
+        ).to_dict()
+        obj["content"] = "forged"
+
+        self.assertFalse(storage_objects.save_object(obj, auto_push=False))
+
+    def test_duplicate_object_replay_is_ignored(self):
+        alice = self.create_user("alice")
+        obj = BeepObject.create_object(
+            type_="post",
+            author_pubkey=alice["pubkey"],
+            content="once",
+            meta={},
+        ).to_dict()
+
+        self.assertTrue(storage_objects.save_object(obj, auto_push=False))
+        self.assertFalse(storage_objects.save_object(obj, auto_push=False))
+
+    def test_unauthorized_room_event_replay_is_ignored(self):
+        alice = self.create_user("alice")
+        bob = self.create_user("bob")
+        rooms = RoomService()
+        rooms.create_room("ops", "alice", private=False, ttl=None)
+        rooms.join_room("ops", "bob")
+        room = rooms.build_room_state("ops")
+
+        forged_kick = BeepObject.create_object(
+            type_="room_event",
+            author_pubkey=bob["pubkey"],
+            content="kick",
+            meta={
+                "room": room["room_id"],
+                "action": "kick",
+                "target_pubkey": alice["pubkey"],
+            },
+        )
+        storage_objects.save_object(forged_kick.to_dict(), auto_push=False)
+
+        rebuilt = rooms.build_room_state("ops")
+        self.assertIn(alice["pubkey"], rebuilt["members"])
+        self.assertNotIn(alice["pubkey"], rebuilt["banned"])
+
+    def test_delete_publishes_signed_tombstone(self):
+        alice = self.create_user("alice")
+        from storage.fs import BeepFS
+
+        fs = BeepFS()
+        post_id = fs.create_post(alice["pubkey"], "remove me")
+        fs.delete_post(post_id, "alice")
+
+        tombstones = storage_objects.tombstones_for(post_id)
+        self.assertEqual(len(tombstones), 1)
+        self.assertEqual(tombstones[0]["author"], alice["pubkey"])
+        self.assertTrue(fs.read_post(post_id)["revoked"])
+
+    def test_key_rotation_publishes_revocation_and_updates_profile(self):
+        alice = self.create_user("alice")
+        old_key_id = alice["enc_fingerprint"]
+
+        revocation_id = storage_profile.rotate_encryption_key("alice")
+        rotated = storage_profile.get_user("alice")
+        revocation = storage_objects.get_object(revocation_id)
+
+        self.assertNotEqual(rotated["enc_fingerprint"], old_key_id)
+        self.assertIn(old_key_id, rotated["revoked_key_ids"])
+        self.assertEqual(revocation["type"], "key_revocation")
+        self.assertEqual(revocation["meta"]["old_key_id"], old_key_id)
+
+    def test_recovery_selects_decryptable_iro_over_newer_bad_candidate(self):
+        alice = self.create_user("alice")
+        root_seed = crypto_seed.load_or_create_root_seed("alice")
+        older = storage_iro.get_latest_iro("alice")
+        bad_meta = dict(older["meta"])
+        bad_meta["recovery_encrypted"] = {
+            "scheme": "seed-recovery-aes-gcm-v1",
+            "nonce": "00" * 12,
+            "ciphertext": "00",
+        }
+        newer_bad = BeepObject.create_object(
+            type_="iro",
+            author_pubkey=alice["pubkey"],
+            content="[encrypted]",
+            timestamp=older["timestamp"] + 100,
+            meta=bad_meta,
+        ).to_dict()
+
+        selected = storage_iro.select_fresh_iro_for_seed(
+            root_seed,
+            alice["pubkey"],
+            [older, newer_bad],
+        )
+
+        self.assertIsNotNone(selected)
+        self.assertEqual(selected[0]["id"], older["id"])
+
+    def test_recover_iro_candidates_ignores_wrong_author_from_malicious_relay(self):
+        alice = self.create_user("alice")
+        self.create_user("bob")
+        alice_iro = storage_iro.get_latest_iro("alice")
+        bob_iro = storage_iro.get_latest_iro("bob")
+
+        with patch("network.sync.requests.get") as mock_get, patch(
+            "network.sync.fetch_object"
+        ) as mock_fetch:
+            mock_get.return_value.status_code = 200
+            mock_get.return_value.json.return_value = {
+                "ids": [alice_iro["id"], bob_iro["id"]],
+                "next_cursor": None,
+            }
+            mock_fetch.side_effect = lambda peer, obj_id: {
+                alice_iro["id"]: alice_iro,
+                bob_iro["id"]: bob_iro,
+            }[obj_id]
+
+            candidates = network_sync.recover_iro_candidates(
+                alice["pubkey"],
+                ["http://relay"],
+            )
+
+        self.assertEqual([obj["id"] for obj in candidates], [alice_iro["id"]])
+
+    def test_node_rejects_oversized_object_payload(self):
+        class FakeRequest:
+            headers = {"content-length": str(storage_network_policy.DEFAULT_POLICY["max_object_bytes"] + 1)}
+            client = SimpleNamespace(host="127.0.0.1")
+
+            async def body(self):
+                return b"{}"
+
+        response = asyncio.run(network_node.receive_object_route(FakeRequest()))
+        self.assertEqual(response.status_code, 413)
+
+    def test_inventory_endpoint_paginates_with_cursor(self):
+        alice = self.create_user("alice")
+        ids = []
+        for index in range(3):
+            obj = BeepObject.create_object(
+                type_="post",
+                author_pubkey=alice["pubkey"],
+                content=f"post {index}",
+                meta={},
+            )
+            storage_objects.save_object(obj.to_dict(), auto_push=False)
+            ids.append(obj.id)
+
+        request = SimpleNamespace(headers={}, client=SimpleNamespace(host="127.0.0.1"))
+        first = network_node.inventory(request, limit=2)
+        second = network_node.inventory(request, cursor=first["next_cursor"], limit=2)
+
+        self.assertLessEqual(len(first["ids"]), 2)
+        self.assertTrue(first["next_cursor"])
+        self.assertTrue(set(first["ids"]).isdisjoint(second["ids"]))
+
+    def test_peer_auth_required_rejects_missing_token(self):
+        storage_network_policy.update_network_policy(
+            peer_auth_required=True,
+            peer_auth_token="secret",
+        )
+
+        class FakeRequest:
+            headers = {}
+            client = SimpleNamespace(host="127.0.0.1")
+
+            async def body(self):
+                return b"{}"
+
+        response = asyncio.run(network_node.receive_object_route(FakeRequest()))
+        self.assertEqual(response.status_code, 401)
+
+    def test_relay_policy_denylisted_author_is_rejected(self):
+        alice = self.create_user("alice")
+        storage_network_policy.update_network_policy(
+            denylisted_authors=[alice["pubkey"]],
+        )
+        obj = BeepObject.create_object(
+            type_="post",
+            author_pubkey=alice["pubkey"],
+            content="blocked",
+            meta={},
+        ).to_dict()
+
+        class FakeRequest:
+            headers = {
+                "content-length": "100",
+            }
+            client = SimpleNamespace(host="127.0.0.1")
+
+            async def body(self):
+                return json.dumps(obj).encode("utf-8")
+
+        response = asyncio.run(network_node.receive_object_route(FakeRequest()))
+        self.assertEqual(response.status_code, 403)
+
+    def test_sync_uses_paginated_inventory_pages(self):
+        pages = [
+            {"ids": ["a", "b"], "next_cursor": "b"},
+            {"ids": ["c"], "next_cursor": None},
+        ]
+
+        with patch("network.sync.requests.get") as mock_get:
+            mock_get.side_effect = [
+                SimpleNamespace(status_code=200, json=lambda payload=page: payload)
+                for page in pages
+            ]
+            result = list(network_sync.iter_inventory_pages("http://peer", limit=2))
+
+        self.assertEqual(result, [["a", "b"], ["c"]])
+
+    def test_reachability_prefers_health_endpoint(self):
+        with patch("network.reachability.requests.get") as mock_get:
+            mock_get.return_value.status_code = 200
+            mock_get.return_value.json.return_value = {
+                "status": "ok",
+                "objects": 3,
+                "relay_only_mode": True,
+            }
+
+            health = network_reachability.probe_endpoint_health("http://peer")
+
+        self.assertEqual(health["status"], "reachable")
+        self.assertEqual(health["objects"], 3)
+        self.assertTrue(health["relay_only_mode"])
 
     def test_direct_only_strategy_excludes_relays_from_targets(self):
         storage_network_policy.update_network_policy(

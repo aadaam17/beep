@@ -105,7 +105,7 @@ http://127.0.0.1:8000
 You can confirm the local node responds with:
 
 ```text
-curl http://127.0.0.1:8000/inventory
+curl http://127.0.0.1:8000/health
 ```
 
 ## Step 4: Put A Reverse Proxy In Front
@@ -151,7 +151,7 @@ https://relay.example.net
 After HTTPS is enabled, verify the public endpoint:
 
 ```text
-curl https://relay.example.net/inventory
+curl https://relay.example.net/health
 ```
 
 ## Step 6: Keep The Relay Running
@@ -249,6 +249,18 @@ beep relay policy set presence-ttl 86400
 beep relay policy set presence-refresh 900
 beep relay policy set public-endpoint https://relay.example.net
 beep relay policy set public-endpoint clear
+beep relay policy set max-object-bytes 262144
+beep relay policy set max-posts-per-minute 60
+beep relay policy set max-objects-per-author 10000
+beep relay policy set max-objects-per-ip 20000
+beep relay policy set retention-limit 50000
+beep relay policy set relay-only on
+beep relay policy set deny-author <pubkey>
+beep relay policy set allow-author <pubkey>
+beep relay policy set deny-ip <ip>
+beep relay policy set allow-ip <ip>
+beep relay policy set peer-auth on
+beep relay policy set peer-token <shared-secret>
 ```
 
 ### Strategy Meanings
@@ -275,6 +287,54 @@ Clear it later with:
 ```text
 beep relay policy set public-endpoint clear
 ```
+
+Run this after setting or changing the public endpoint:
+
+```text
+beep network check
+```
+
+The check probes `/health`, reports whether the endpoint is reachable, and shows
+object count plus relay-only mode when the node exposes that information.
+
+## Relay Safety Policy
+
+Public relays should set explicit quotas before accepting broad traffic:
+
+```text
+beep relay policy set max-object-bytes 262144
+beep relay policy set max-posts-per-minute 60
+beep relay policy set max-objects-per-author 10000
+beep relay policy set max-objects-per-ip 20000
+beep relay policy set retention-limit 50000
+```
+
+When the retention limit is reached, the node tries local pruning before
+rejecting new objects. Denylist controls are available for obvious abuse:
+
+```text
+beep relay policy set deny-author <pubkey>
+beep relay policy set deny-ip <ip>
+```
+
+Use relay-only mode for a relay that should serve sync traffic without
+publishing the operator's own local presence:
+
+```text
+beep relay policy set relay-only on
+```
+
+## Private Relay Mode
+
+For private networks, enable shared-token peer authentication:
+
+```text
+beep relay policy set peer-auth on
+beep relay policy set peer-token <shared-secret>
+```
+
+Peers with the same policy token send `X-Beep-Peer-Token` on sync and discovery
+requests. `/health` remains public so operators can check reachability.
 
 That means the most reliable public deployment model is:
 

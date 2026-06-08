@@ -33,10 +33,10 @@ def load_or_create_keys(username: str):
     return _rsa_keys(username)
 
 
-def load_or_create_exchange_keys(username: str):
+def load_or_create_exchange_keys(username: str, *, epoch: int = 1):
     """Load or create the deterministic X25519 exchange keypair for a user."""
 
-    return _exchange_keys(username)
+    return _exchange_keys(username, epoch=epoch)
 
 
 def generate_keys():
@@ -285,9 +285,13 @@ def find_local_key_slot(
 
     scheme = encrypted_meta.get("scheme", "rsa-oaep-v1")
     if scheme == "x25519-aesgcm-v1":
-        _, public_key = load_or_create_exchange_keys(username)
-        key_id = encryption_key_fingerprint(exchange_pubkey_to_str(public_key))
-        return find_key_slot(encrypted_meta, [key_id])
+        for epoch in _local_key_epochs(username):
+            _, public_key = load_or_create_exchange_keys(username, epoch=epoch)
+            key_id = encryption_key_fingerprint(exchange_pubkey_to_str(public_key))
+            slot = find_key_slot(encrypted_meta, [key_id])
+            if slot is not None:
+                slot["local_epoch"] = epoch
+                return slot
     if scheme == "rsa-oaep-v1":
         _, public_key = load_or_create_keys(username)
         key_id = encryption_key_fingerprint(encryption_pubkey_to_str(public_key))
@@ -367,7 +371,9 @@ def _decrypt_exchange_message(username: str, encrypted_meta: dict[str, object]) 
     ):
         raise ValueError("Invalid deterministic envelope")
 
-    private_key, _ = load_or_create_exchange_keys(username)
+    local_epoch = slot.get("local_epoch")
+    epoch = local_epoch if isinstance(local_epoch, int) else 1
+    private_key, _ = load_or_create_exchange_keys(username, epoch=epoch)
     shared_secret = private_key.exchange(load_exchange_public_key(ephemeral_pubkey))
     wrap_key = _derive_wrap_key(shared_secret)
     aes_key = AESGCM(wrap_key).decrypt(
@@ -381,6 +387,21 @@ def _decrypt_exchange_message(username: str, encrypted_meta: dict[str, object]) 
         None,
     )
     return plaintext.decode("utf-8")
+
+
+def _local_key_epochs(username: str) -> list[int]:
+    """Return local encryption epochs to try, newest first."""
+
+    try:
+        from storage.profile import load_users
+
+        user = load_users().get(username)
+    except Exception:
+        user = None
+    version = user.get("key_derivation_version") if user else None
+    if not isinstance(version, int) or version < 1:
+        version = 1
+    return list(range(version, 0, -1))
 
 
 def _derive_wrap_key(shared_secret: bytes) -> bytes:

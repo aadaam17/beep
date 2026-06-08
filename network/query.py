@@ -7,6 +7,8 @@ from typing import TypedDict
 
 import requests
 
+from storage.network_policy import peer_auth_header
+
 
 class DiscoveredIdentity(TypedDict):
     """Identity information discovered from a peer."""
@@ -29,7 +31,11 @@ class QueryEngine:
 
         for peer in self.peers:
             try:
-                res = requests.get(f"{peer}/objects/recent?limit={limit}", timeout=2)
+                res = requests.get(
+                    f"{peer}/objects/recent?limit={limit}",
+                    headers=peer_auth_header(),
+                    timeout=2,
+                )
                 ids = res.json().get("objects", [])
                 results.update(item for item in ids if isinstance(item, str))
             except Exception:
@@ -42,7 +48,11 @@ class QueryEngine:
 
         for peer in self.peers:
             try:
-                res = requests.get(f"{peer}/objects/by_author/{author}", timeout=2)
+                res = requests.get(
+                    f"{peer}/objects/by_author/{author}",
+                    headers=peer_auth_header(),
+                    timeout=2,
+                )
                 ids = res.json().get("objects", [])
                 results.update(item for item in ids if isinstance(item, str))
             except Exception:
@@ -61,7 +71,11 @@ def resolve_identity(
 
     for peer in peers:
         try:
-            response = requests.get(f"{peer}/resolve/{identifier}", timeout=2)
+            response = requests.get(
+                f"{peer}/resolve/{identifier}",
+                headers=peer_auth_header(),
+                timeout=2,
+            )
             if response.status_code != 200:
                 continue
             payload = response.json()

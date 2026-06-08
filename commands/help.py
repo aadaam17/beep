@@ -41,7 +41,7 @@ Posts
   comment <object_id> "comment"          Reply to a post or comment
   share <post_id>                        Share a post
   quote <post_id> "text"                 Quote a post
-  delete <post_id>                       Reserved for future tombstones
+  delete <post_id>                       Publish a signed tombstone for your post
   view <object_id>                       Show a post/comment thread by ID
 
 Profile
@@ -51,6 +51,7 @@ Profile
   profile --following                    Show following
   profile --posts                        Show authored posts
   profile --shared                       Show shared and quoted posts
+  profile --rotate-key                   Rotate encryption key and revoke old key ID
 
 Follow
   follow <username|username#handle>      Follow a user
@@ -99,7 +100,7 @@ Node
   relay remove <url>                     Remove a relay node
   relay list                             Show configured relays
   relay policy                           Show network and relay policy
-  relay policy set ...                   Update relay strategy, presence timings, or public endpoint
+  relay policy set ...                   Update relay strategy, quotas, auth, or public endpoint
   sync                                   Synchronize objects with peers
   node status                            Show node-mode policy and runtime status
   node enable                            Enable hosting on this device

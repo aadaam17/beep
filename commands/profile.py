@@ -4,7 +4,11 @@
 from core.identity import build_identity_handle, find_identity_matches, resolve_username
 from core.types import CommandState
 from storage.objects import query_objects
-from storage.profile import get_effective_followers, get_effective_following
+from storage.profile import (
+    get_effective_followers,
+    get_effective_following,
+    rotate_encryption_key,
+)
 
 
 def dispatch(cmd: str, args: str, state: CommandState) -> None:
@@ -12,6 +16,18 @@ def dispatch(cmd: str, args: str, state: CommandState) -> None:
 
     show_posts = "--posts" in parts
     show_shared = "--shared" in parts
+
+    if "--rotate-key" in parts:
+        if not state.user:
+            print("[PROFILE] You must be logged in to rotate keys.")
+            return
+        try:
+            rotation_id = rotate_encryption_key(state.user)
+        except Exception as exc:
+            print(f"[PROFILE] Key rotation failed: {exc}")
+            return
+        print(f"[PROFILE] Encryption key rotated. Revocation object: {rotation_id}")
+        return
 
     requested_identity = next((part for part in parts if not part.startswith("--")), None)
 

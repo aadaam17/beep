@@ -4,6 +4,7 @@
 from storage.profile import get_user
 from core.create import create_post
 from storage.objects import get_object
+from storage.fs import BeepFS
 from state import AppState
 
 
@@ -119,4 +120,12 @@ def dispatch(cmd: str, args: str, state: AppState) -> None:
         print(f"[QUOTE] Quote created: {quote_id} (from {pid})")
 
     elif cmd == "delete":
-        print("[DELETE] Delete is not supported for immutable objects yet.")
+        if not parts:
+            print("[DELETE] Usage: delete <object_id>")
+            return
+        try:
+            BeepFS().delete_post(parts[0], user)
+        except PermissionError as exc:
+            print(f"[DELETE] Error: {exc}")
+            return
+        print(f"[DELETE] Tombstone published: {parts[0]}")

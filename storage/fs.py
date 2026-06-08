@@ -6,7 +6,7 @@ from typing import cast
 
 from core.object import BeepObject
 from storage.atomic import atomic_write_json
-from storage.objects import get_object, query_objects, save_object
+from storage.objects import get_object, is_tombstoned, query_objects, save_object
 from storage.profile import get_user_by_pubkey, update_user
 from storage.chat_service import ChatService
 from storage.room_service import RoomService
@@ -79,6 +79,18 @@ class BeepFS:
                 "type": None,
             }
 
+        if is_tombstoned(post_id):
+            return {
+                "creator": obj["author"],
+                "content": "[deleted]",
+                "timestamp": obj["timestamp"],
+                "type": obj["type"],
+                "revoked": True,
+                "shared_from": None,
+                "parent_id": None,
+                "quote": False,
+            }
+
         shared_from = obj.get("meta", {}).get("shared_from")
         parent_id = obj.get("meta", {}).get("parent_id")
         quote = obj.get("meta", {}).get("quote", False)
@@ -127,10 +139,23 @@ class BeepFS:
 
     def delete_post(self, post_id: str, username: str) -> None:
         post = self.read_post(post_id)
-        if post.get("creator") != username:
+        target = get_object(post_id)
+        user = get_user_by_pubkey(post.get("creator") or "")
+        if target is None or user is None or user["username"] != username:
             raise PermissionError("Cannot delete another user's post")
-        post["revoked"] = True
-        self.save_post(post_id, post)
+        if is_tombstoned(post_id):
+            return
+        tombstone = BeepObject.create_object(
+            type_="tombstone",
+            author_pubkey=target["author"],
+            content="[deleted]",
+            meta={
+                "target": post_id,
+                "target_type": str(target.get("type") or "object"),
+                "reason": "deleted",
+            },
+        )
+        save_object(tombstone.to_dict())
 
     def _local_usernames(self) -> set[str]:
         user_file = Path.home() / ".beep" / "beep_users.json"

@@ -592,10 +592,13 @@ class RoomService:
             action = meta.get("action")
             if not isinstance(action, str):
                 continue
+            actor_pubkey = event["author"]
             target_pubkey = self.legacy_target_pubkey(meta)
             target_key_id = meta.get("target_key_id")
 
             if action == "invite":
+                if actor_pubkey not in room["members"]:
+                    continue
                 invited_pubkey = self.legacy_target_pubkey(meta)
                 invited_key_id = (
                     target_key_id if isinstance(target_key_id, str) else None
@@ -616,6 +619,8 @@ class RoomService:
                 continue
 
             if action == "dissolve":
+                if actor_pubkey != owner_pubkey:
+                    continue
                 room["dissolved"] = True
                 continue
 
@@ -623,6 +628,8 @@ class RoomService:
                 continue
 
             if action == "join":
+                if actor_pubkey != target_pubkey:
+                    continue
                 join_key_id = target_key_id if isinstance(target_key_id, str) else None
                 if room["type"] == "private" and target_pubkey != owner_pubkey:
                     if target_pubkey not in room["invited"]:
@@ -632,13 +639,21 @@ class RoomService:
                 if target_pubkey not in room["banned"]:
                     room["members"].add(target_pubkey)
             elif action == "leave":
+                if actor_pubkey != target_pubkey:
+                    continue
                 if target_pubkey in room["members"] and target_pubkey != owner_pubkey:
                     room["members"].remove(target_pubkey)
             elif action == "mod":
+                if actor_pubkey != owner_pubkey:
+                    continue
                 room["moderators"].add(target_pubkey)
             elif action == "unmod":
+                if actor_pubkey != owner_pubkey:
+                    continue
                 room["moderators"].discard(target_pubkey)
             elif action == "mute":
+                if actor_pubkey != owner_pubkey and actor_pubkey not in room["moderators"]:
+                    continue
                 permanent = meta.get("permanent")
                 if permanent is True:
                     room["muted"][target_pubkey] = "perma"
@@ -649,8 +664,12 @@ class RoomService:
                     )
                     room["muted"][target_pubkey] = {"until": until_value}
             elif action == "unmute":
+                if actor_pubkey != owner_pubkey and actor_pubkey not in room["moderators"]:
+                    continue
                 room["muted"].pop(target_pubkey, None)
             elif action == "kick":
+                if actor_pubkey != owner_pubkey and actor_pubkey not in room["moderators"]:
+                    continue
                 room["members"].discard(target_pubkey)
                 room["banned"].add(target_pubkey)
 

@@ -12,7 +12,7 @@ from network.node_manager import (
     load_node_runtime,
     node_log_path,
     node_log_tail,
-    node_runtime_reachable,
+    node_runtime_health,
     stop_background_node,
 )
 from storage.network_policy import load_network_policy, update_network_policy
@@ -104,8 +104,15 @@ def _status() -> None:
         if tail:
             print(f" - last log: {tail[-1]}")
     else:
-        health = "reachable" if node_runtime_reachable(runtime) else "unreachable"
-        print(f" - local node: {runtime['url']} (pid {runtime['pid']}, {health})")
+        health = node_runtime_health(runtime)
+        health_label = "reachable" if health["reachable"] else "unreachable"
+        print(f" - local node: {runtime['url']} (pid {runtime['pid']}, {health_label})")
+        if health["objects"] is not None:
+            print(f" - stored objects: {health['objects']}")
+        if health["relay_only_mode"] is not None:
+            print(f" - relay-only mode: {'on' if health['relay_only_mode'] else 'off'}")
+        if health["error"]:
+            print(f" - health error: {health['error']}")
     print(f" - log file: {node_log_path()}")
 
 

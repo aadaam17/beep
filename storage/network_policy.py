@@ -21,6 +21,16 @@ class NetworkPolicy(TypedDict):
     presence_ttl_seconds: int
     presence_refresh_seconds: int
     public_endpoint: str
+    max_object_bytes: int
+    max_posts_per_minute: int
+    max_objects_per_author: int
+    max_objects_per_ip: int
+    relay_retention_limit: int
+    relay_only_mode: bool
+    denylisted_authors: list[str]
+    denylisted_ips: list[str]
+    peer_auth_required: bool
+    peer_auth_token: str
 
 
 POLICY_FILE = Path.home() / ".beep" / "network_policy.json"
@@ -32,6 +42,16 @@ DEFAULT_POLICY: NetworkPolicy = {
     "presence_ttl_seconds": 24 * 60 * 60,
     "presence_refresh_seconds": 15 * 60,
     "public_endpoint": "",
+    "max_object_bytes": 256 * 1024,
+    "max_posts_per_minute": 60,
+    "max_objects_per_author": 10_000,
+    "max_objects_per_ip": 20_000,
+    "relay_retention_limit": 50_000,
+    "relay_only_mode": False,
+    "denylisted_authors": [],
+    "denylisted_ips": [],
+    "peer_auth_required": False,
+    "peer_auth_token": "",
 }
 
 
@@ -76,6 +96,31 @@ def load_network_policy() -> NetworkPolicy:
     if isinstance(public_endpoint, str):
         policy["public_endpoint"] = public_endpoint
 
+    for key in (
+        "max_object_bytes",
+        "max_posts_per_minute",
+        "max_objects_per_author",
+        "max_objects_per_ip",
+        "relay_retention_limit",
+    ):
+        value = data.get(key)
+        if isinstance(value, int) and value > 0:
+            policy[key] = value
+
+    for key in ("relay_only_mode", "peer_auth_required"):
+        value = data.get(key)
+        if isinstance(value, bool):
+            policy[key] = value
+
+    for key in ("denylisted_authors", "denylisted_ips"):
+        value = data.get(key)
+        if isinstance(value, list):
+            policy[key] = [item for item in value if isinstance(item, str)]
+
+    peer_auth_token = data.get("peer_auth_token")
+    if isinstance(peer_auth_token, str):
+        policy["peer_auth_token"] = peer_auth_token
+
     return policy
 
 
@@ -118,6 +163,31 @@ def update_network_policy(**changes: object) -> NetworkPolicy:
     if isinstance(public_endpoint, str):
         policy["public_endpoint"] = public_endpoint
 
+    for key in (
+        "max_object_bytes",
+        "max_posts_per_minute",
+        "max_objects_per_author",
+        "max_objects_per_ip",
+        "relay_retention_limit",
+    ):
+        value = changes.get(key)
+        if isinstance(value, int) and value > 0:
+            policy[key] = value
+
+    for key in ("relay_only_mode", "peer_auth_required"):
+        value = changes.get(key)
+        if isinstance(value, bool):
+            policy[key] = value
+
+    for key in ("denylisted_authors", "denylisted_ips"):
+        value = changes.get(key)
+        if isinstance(value, list):
+            policy[key] = [item for item in value if isinstance(item, str)]
+
+    peer_auth_token = changes.get("peer_auth_token")
+    if isinstance(peer_auth_token, str):
+        policy["peer_auth_token"] = peer_auth_token
+
     save_network_policy(policy)
     return policy
 
@@ -151,6 +221,16 @@ def public_endpoint() -> str | None:
 
     endpoint = load_network_policy()["public_endpoint"].strip()
     return endpoint or None
+
+
+def peer_auth_header() -> dict[str, str]:
+    """Return the configured peer auth header, if enabled."""
+
+    policy = load_network_policy()
+    token = policy["peer_auth_token"].strip()
+    if not policy["peer_auth_required"] or not token:
+        return {}
+    return {"X-Beep-Peer-Token": token}
 
 
 def order_network_targets(peers: list[str], relays: list[str]) -> list[str]:

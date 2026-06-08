@@ -39,6 +39,7 @@ core/identity.py
 core/index.py
 core/object.py
 core/object_store.py
+core/protocol.py
 core/schemas.py
 core/signing.py
 core/thread_view.py
@@ -67,6 +68,7 @@ network/sync.py
 node/__init__.py
 node/runtime.py
 storage/__init__.py
+storage/atomic.py
 storage/backup.py
 storage/chat_service.py
 storage/chats.py

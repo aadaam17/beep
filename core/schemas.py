@@ -18,6 +18,8 @@ _ROOM_ACTIONS = {
     "dissolve",
 }
 _FOLLOW_ACTIONS = {"follow", "unfollow"}
+_TOMBSTONE_REASONS = {"deleted", "retracted", "superseded"}
+_KEY_REVOCATION_ACTIONS = {"rotate", "revoke"}
 
 
 def validate_object_schema(obj: Mapping[str, Any]) -> list[str]:
@@ -31,6 +33,13 @@ def validate_object_schema(obj: Mapping[str, Any]) -> list[str]:
 
     if obj_type in {"post"}:
         pass
+    elif obj_type == "tombstone":
+        _require_keys(meta, {"target", "target_type", "reason"}, errors, prefix="meta")
+        _expect_type(meta, "target", str, errors, prefix="meta")
+        _expect_type(meta, "target_type", str, errors, prefix="meta")
+        _expect_type(meta, "reason", str, errors, prefix="meta")
+        if meta.get("reason") not in _TOMBSTONE_REASONS:
+            errors.append("meta.reason must be one of: deleted, retracted, superseded")
     elif obj_type == "comment":
         _require_keys(meta, {"parent_id"}, errors, prefix="meta")
         _expect_type(meta, "parent_id", str, errors, prefix="meta")
@@ -57,6 +66,22 @@ def validate_object_schema(obj: Mapping[str, Any]) -> list[str]:
             _expect_type(meta, "rsa_pubkey", str, errors, prefix="meta")
         if "rsa_fingerprint" in meta:
             _expect_type(meta, "rsa_fingerprint", str, errors, prefix="meta")
+        if "revoked_key_ids" in meta and not isinstance(meta["revoked_key_ids"], list):
+            errors.append("meta.revoked_key_ids must be list")
+    elif obj_type == "key_revocation":
+        _require_keys(
+            meta,
+            {"action", "key_scope", "old_key_id", "new_key_id", "reason"},
+            errors,
+            prefix="meta",
+        )
+        _expect_type(meta, "action", str, errors, prefix="meta")
+        _expect_type(meta, "key_scope", str, errors, prefix="meta")
+        _expect_type(meta, "old_key_id", str, errors, prefix="meta")
+        _expect_type(meta, "new_key_id", str, errors, prefix="meta")
+        _expect_type(meta, "reason", str, errors, prefix="meta")
+        if meta.get("action") not in _KEY_REVOCATION_ACTIONS:
+            errors.append("meta.action must be one of: rotate, revoke")
     elif obj_type == "presence":
         _require_keys(meta, {"username", "endpoint", "reachable_via"}, errors, prefix="meta")
         _expect_type(meta, "username", str, errors, prefix="meta")

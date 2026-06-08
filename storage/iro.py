@@ -214,3 +214,32 @@ def decrypt_iro_with_seed(root_seed: bytes, iro_obj: BeepObjectRecord | None) ->
             recovery_encrypted,
         ),
     )
+
+
+def select_fresh_iro_for_seed(
+    root_seed: bytes,
+    owner_pubkey: str,
+    candidates: list[BeepObjectRecord],
+) -> tuple[BeepObjectRecord, IROPayload] | None:
+    """Choose the freshest decryptable IRO matching the expected owner."""
+
+    valid: list[tuple[tuple[int, float, str], BeepObjectRecord, IROPayload]] = []
+    for obj in candidates:
+        if obj.get("type") != "iro" or obj.get("author") != owner_pubkey:
+            continue
+        try:
+            payload = decrypt_iro_with_seed(root_seed, obj)
+        except Exception:
+            continue
+        if payload is None or payload.get("owner_pubkey") != owner_pubkey:
+            continue
+        version = payload.get("version", 0)
+        if not isinstance(version, int):
+            continue
+        obj_id = obj.get("id") or ""
+        valid.append(((version, obj["timestamp"], obj_id), obj, payload))
+
+    if not valid:
+        return None
+    _, obj, payload = max(valid, key=lambda item: item[0])
+    return obj, payload

@@ -10,6 +10,7 @@ import requests
 
 from core.types import BeepObjectRecord
 from core.verify import verify_object
+from storage.network_policy import peer_auth_header
 from storage.relay import load_network_targets
 from storage.objects import get_object, list_objects, pin_object, save_object
 
@@ -19,6 +20,8 @@ TYPE_LABELS = {
     "share": "shares",
     "quote": "quotes",
     "profile": "profiles",
+    "key_revocation": "key revocations",
+    "tombstone": "tombstones",
     "iro": "iros",
     "follow": "follows",
     "chat": "chats",
@@ -31,6 +34,7 @@ TYPE_LABELS = {
 TypeCounter: TypeAlias = Counter[str]
 SyncSummary: TypeAlias = dict[str, str | int | bool | TypeCounter]
 RecoverySummary: TypeAlias = dict[str, str | int | list[str] | TypeCounter]
+INVENTORY_PAGE_LIMIT = 200
 
 
 def summarize_types(counter: TypeCounter) -> str:
@@ -66,7 +70,12 @@ def push_object(peer: str, obj: BeepObjectRecord, *, verbose: bool = False) -> b
     """Push a single object to a peer."""
 
     try:
-        response = requests.post(f"{peer}/object", json=obj, timeout=5)
+        response = requests.post(
+            f"{peer}/object",
+            json=obj,
+            headers=peer_auth_header(),
+            timeout=5,
+        )
         return response.status_code in (200, 201, 202)
     except Exception as exc:
         if verbose:
@@ -104,7 +113,11 @@ def fetch_object(peer: str, obj_id: str, *, verbose: bool = True) -> BeepObjectR
     """Fetch a single object from a peer by ID."""
 
     try:
-        response = requests.get(f"{peer}/object/{obj_id}", timeout=5)
+        response = requests.get(
+            f"{peer}/object/{obj_id}",
+            headers=peer_auth_header(),
+            timeout=5,
+        )
         if response.status_code != 200:
             return None
         payload = _read_json_payload(response)
@@ -131,38 +144,73 @@ def sync_peer(peer: str, local_ids: set[str], *, verbose: bool = True) -> SyncSu
     }
 
     try:
-        response = requests.get(f"{peer}/objects", timeout=5)
-        if response.status_code != 200:
-            summary["failed"] = True
-            return summary
+        for remote_ids in iter_inventory_pages(peer):
+            missing = [obj_id for obj_id in remote_ids if obj_id not in local_ids]
+            summary["missing"] = int(summary["missing"]) + len(missing)
 
-        payload = _read_json_payload(response)
-        if isinstance(payload, dict):
-            remote_ids = set(_string_list(payload.get("objects")))
-        elif isinstance(payload, list):
-            remote_ids = set(_string_list(payload))
-        else:
-            remote_ids = set()
+            for obj_id in missing:
+                obj = fetch_object(peer, obj_id, verbose=verbose)
+                if obj is None:
+                    continue
 
-        missing = remote_ids - local_ids
-        summary["missing"] = len(missing)
-
-        for obj_id in missing:
-            obj = fetch_object(peer, obj_id, verbose=verbose)
-            if obj is None:
-                continue
-
-            if receive_object(obj, verbose=verbose):
-                obj_type = obj.get("type", "object")
-                summary["imported"] = int(summary["imported"]) + 1
-                summary["types"][obj_type] += 1
-                local_ids.add(obj_id)
+                if receive_object(obj, verbose=verbose):
+                    obj_type = obj.get("type", "object")
+                    summary["imported"] = int(summary["imported"]) + 1
+                    summary["types"][obj_type] += 1
+                    local_ids.add(obj_id)
     except Exception as exc:
         if verbose:
             print(f"[SYNC] peer failed {peer}: {exc}")
         summary["failed"] = True
 
     return summary
+
+
+def iter_inventory_pages(peer: str, *, limit: int = INVENTORY_PAGE_LIMIT):
+    """Yield remote object ID pages, preferring cursor inventory over full scans."""
+
+    cursor: str | None = None
+    used_inventory = False
+    while True:
+        params: dict[str, object] = {"limit": limit}
+        if cursor:
+            params["cursor"] = cursor
+        response = requests.get(
+            f"{peer}/inventory",
+            params=params,
+            headers=peer_auth_header(),
+            timeout=5,
+        )
+        if response.status_code == 404:
+            break
+        if response.status_code != 200:
+            raise RuntimeError(f"inventory failed with HTTP {response.status_code}")
+        payload = _read_json_payload(response)
+        if not isinstance(payload, dict):
+            raise RuntimeError("invalid inventory payload")
+        ids = _string_list(payload.get("ids"))
+        yield ids
+        used_inventory = True
+        next_cursor = payload.get("next_cursor")
+        if not isinstance(next_cursor, str) or not next_cursor:
+            return
+        cursor = next_cursor
+
+    if not used_inventory:
+        response = requests.get(
+            f"{peer}/objects",
+            headers=peer_auth_header(),
+            timeout=5,
+        )
+        if response.status_code != 200:
+            raise RuntimeError(f"objects failed with HTTP {response.status_code}")
+        payload = _read_json_payload(response)
+        if isinstance(payload, dict):
+            yield _string_list(payload.get("objects"))
+        elif isinstance(payload, list):
+            yield _string_list(payload)
+        else:
+            yield []
 
 
 def sync(*, verbose: bool = True) -> dict[str, int | TypeCounter]:
@@ -261,44 +309,12 @@ def recover_latest_iro(
 ) -> BeepObjectRecord | None:
     """Find and cache the newest IRO for a given owner across peers."""
 
-    latest_iro: BeepObjectRecord | None = None
-
-    for peer in peers:
-        try:
-            response = requests.get(f"{peer}/objects", timeout=5)
-            if response.status_code != 200:
-                continue
-            payload = _read_json_payload(response)
-            if isinstance(payload, dict):
-                remote_ids = _string_list(payload.get("objects"))
-            elif isinstance(payload, list):
-                remote_ids = _string_list(payload)
-            else:
-                remote_ids = []
-        except Exception:
-            continue
-
-        for obj_id in remote_ids:
-            obj = fetch_object(peer, obj_id)
-            if obj is None:
-                continue
-            if obj.get("type") != "iro":
-                continue
-            if obj.get("author") != owner_pubkey:
-                continue
-            if not verify_object(obj):
-                continue
-            obj_id_value = obj.get("id")
-            latest_id_value = latest_iro.get("id") if latest_iro is not None else None
-            current_key = (obj["timestamp"], obj_id_value or "")
-            best_key = (
-                (latest_iro["timestamp"], latest_id_value or "")
-                if latest_iro is not None
-                else None
-            )
-            if best_key is None or current_key > best_key:
-                latest_iro = obj
-
+    candidates = recover_iro_candidates(owner_pubkey, peers)
+    latest_iro = max(
+        candidates,
+        key=lambda obj: (obj["timestamp"], obj.get("id") or ""),
+        default=None,
+    )
     if latest_iro and verbose:
         print(f"[RECOVERY] discovered IRO {latest_iro.get('id', '')}")
     if latest_iro:
@@ -308,6 +324,36 @@ def recover_latest_iro(
             pin_object(iro_id, "iro")
 
     return latest_iro
+
+
+def recover_iro_candidates(
+    owner_pubkey: str,
+    peers: list[str],
+) -> list[BeepObjectRecord]:
+    """Return all verified IRO candidates found for an owner across peers."""
+
+    candidates: dict[str, BeepObjectRecord] = {}
+
+    for peer in peers:
+        try:
+            for remote_ids in iter_inventory_pages(peer):
+                for obj_id in remote_ids:
+                    obj = fetch_object(peer, obj_id)
+                    if obj is None:
+                        continue
+                    if obj.get("type") != "iro":
+                        continue
+                    if obj.get("author") != owner_pubkey:
+                        continue
+                    if not verify_object(obj):
+                        continue
+                    obj_id_value = obj.get("id")
+                    if isinstance(obj_id_value, str):
+                        candidates[obj_id_value] = obj
+        except Exception:
+            continue
+
+    return sorted(candidates.values(), key=lambda obj: (obj["timestamp"], obj["id"]))
 
 
 def _read_json_payload(response: requests.Response) -> object:

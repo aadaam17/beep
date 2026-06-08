@@ -140,6 +140,8 @@ The implemented object families include:
 - `share`
 - `quote`
 - `profile`
+- `key_revocation`
+- `tombstone`
 - `presence`
 - `iro`
 - `follow`
@@ -236,6 +238,7 @@ beep post "content"
 beep comment <object_id> "reply"
 beep share <post_id>
 beep quote <post_id> "text"
+beep delete <post_id>
 beep view <object_id>
 beep profile
 beep profile <username|username#handle>
@@ -243,6 +246,7 @@ beep profile --followers
 beep profile --following
 beep profile --posts
 beep profile --shared
+beep profile --rotate-key
 beep follow <username|username#handle>
 beep unfollow <username|username#handle>
 ```
@@ -379,9 +383,10 @@ The node exposes endpoints for:
 - Recent object listing
 - Identity resolution by username or handle
 
-Incoming object POSTs are bounded by request-size and per-client rate limits.
-Use `BEEP_MAX_OBJECT_BYTES` and `BEEP_MAX_POSTS_PER_MINUTE` to tune those
-defaults for a relay deployment.
+Incoming object POSTs are bounded by request-size, per-client rate limits,
+author/IP quotas, retention limits, and optional denylists. Tune these with
+`beep relay policy set max-object-bytes`, `max-posts-per-minute`,
+`max-objects-per-author`, `max-objects-per-ip`, and `retention-limit`.
 
 Private room objects are not auto-pushed to general peers or relays. This
 reduces accidental metadata leakage, but production private rooms still need

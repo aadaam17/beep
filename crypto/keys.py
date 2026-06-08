@@ -76,13 +76,16 @@ def load_or_create_keys(username: str) -> tuple[RSAPrivateKey, RSAPublicKey]:
 
 def load_or_create_exchange_keys(
     username: str,
+    *,
+    epoch: int = 1,
 ) -> tuple[x25519.X25519PrivateKey, x25519.X25519PublicKey]:
     """Derive deterministic X25519 exchange keys from the user's root seed."""
 
     root_seed = load_or_create_root_seed(username)
+    purpose = "encryption/x25519" if epoch <= 1 else f"encryption/x25519/{epoch}"
     private_bytes = derive_key_material(
         root_seed,
-        "encryption/x25519",
+        purpose,
         length=32,
         version=SEED_VERSION,
     )

@@ -10,7 +10,7 @@ from crypto import sign as crypto_sign
 from crypto import keys as crypto_keys
 from crypto.mnemonic import mnemonic_to_seed
 from network.peers import load_peers
-from network.sync import recover_latest_iro, recover_objects
+from network.sync import recover_iro_candidates, recover_latest_iro, recover_objects
 from storage.backup import import_backup_file
 from storage.crypto import (
     encryption_key_fingerprint,
@@ -19,8 +19,8 @@ from storage.crypto import (
     load_or_create_exchange_keys,
     pubkey_to_str,
 )
-from storage.iro import decrypt_iro, decrypt_iro_with_seed, get_latest_iro
-from storage.objects import pinned_objects
+from storage.iro import decrypt_iro, select_fresh_iro_for_seed
+from storage.objects import pinned_objects, query_objects
 from storage.profile import _rsa_fingerprint, get_user, hash_password, load_users, save_users
 from storage.session import save_session
 from storage.atomic import atomic_write_bytes
@@ -70,19 +70,17 @@ def restore_from_mnemonic(
     owner_pubkey = pubkey_to_str(signing_public)
 
     peers = load_peers() or []
-    iro_obj = get_latest_iro(owner_pubkey) or recover_latest_iro(
-        owner_pubkey,
-        peers,
-        verbose=False,
-    )
-    if iro_obj is None:
-        raise ValueError(
-            "Could not discover the latest IRO from configured peers for this mnemonic"
-        )
+    candidates = [
+        obj for obj in query_objects(obj_type="iro") if obj.get("author") == owner_pubkey
+    ]
+    candidates.extend(recover_iro_candidates(owner_pubkey, peers))
 
-    iro_payload = decrypt_iro_with_seed(root_seed, iro_obj)
-    if iro_payload is None:
-        raise ValueError("Recovered IRO could not be decrypted")
+    selected = select_fresh_iro_for_seed(root_seed, owner_pubkey, candidates)
+    if selected is None:
+        raise ValueError(
+            "Could not discover a fresh decryptable IRO from configured peers for this mnemonic"
+        )
+    iro_obj, iro_payload = selected
 
     restored_username = username or iro_payload["username"]
     if not restored_username:

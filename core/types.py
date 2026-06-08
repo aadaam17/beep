@@ -49,6 +49,7 @@ class UserRecord(TypedDict):
     iro_id: str | None
     rsa_pubkey: NotRequired[str]
     rsa_fingerprint: NotRequired[str]
+    revoked_key_ids: NotRequired[list[str]]
 
 
 class ChatMessage(TypedDict):
@@ -122,6 +123,7 @@ class RecipientKeyInfo(TypedDict):
     enc_fingerprint: NotRequired[str]
     rsa_pubkey: NotRequired[str]
     rsa_fingerprint: NotRequired[str]
+    revoked_key_ids: NotRequired[list[str]]
 
 
 class EncryptedKeySlot(TypedDict):

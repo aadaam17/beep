@@ -6,7 +6,7 @@ from __future__ import annotations
 from core.types import CommandState
 from network.node_manager import load_node_runtime
 from network.peers import add_peer, load_peers, normalize_peer_url
-from network.reachability import probe_endpoint
+from network.reachability import probe_endpoint_health
 from storage.network_policy import load_network_policy, order_network_targets
 from storage.relay import add_relay, load_relays
 
@@ -92,9 +92,12 @@ def _setup(parts: list[str]) -> None:
 def _check() -> None:
     """Probe configured discovery targets and report reachability."""
 
+    policy = load_network_policy()
     peers = load_peers()
     relays = load_relays()
     targets = order_network_targets(peers, relays)
+    if policy["public_endpoint"]:
+        targets = list(dict.fromkeys([policy["public_endpoint"], *targets]))
     if not targets:
         print("[NETWORK] No peers or relays configured to check.")
         print("[NETWORK] Use: beep network setup")
@@ -103,13 +106,28 @@ def _check() -> None:
     print("[NETWORK] Reachability check")
     reachable = 0
     for target in targets:
-        kind = "relay" if target in relays else "peer"
-        status = probe_endpoint(target)
-        if status == "reachable":
+        kind = (
+            "public-endpoint"
+            if target == policy["public_endpoint"]
+            else "relay"
+            if target in relays
+            else "peer"
+        )
+        health = probe_endpoint_health(target)
+        if health["status"] == "reachable":
             reachable += 1
-            print(f" - {target} [{kind}] reachable")
+            details: list[str] = []
+            if health["objects"] is not None:
+                details.append(f"{health['objects']} objects")
+            if health["relay_only_mode"] is not None:
+                details.append(
+                    "relay-only " + ("on" if health["relay_only_mode"] else "off")
+                )
+            suffix = f" ({', '.join(details)})" if details else ""
+            print(f" - {target} [{kind}] reachable{suffix}")
         else:
-            print(f" - {target} [{kind}] unreachable")
+            error = f": {health['error']}" if health["error"] else ""
+            print(f" - {target} [{kind}] unreachable{error}")
 
     print(f"[NETWORK] Reachable targets: {reachable}/{len(targets)}")
     if reachable == 0:

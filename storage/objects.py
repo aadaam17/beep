@@ -106,8 +106,7 @@ def get_object(obj_id: str) -> BeepObjectRecord | None:
     if not path.exists():
         return None
 
-    with path.open("r", encoding="utf-8") as file_handle:
-        data = json.load(file_handle)
+    data = read_json_with_backup(path)
     if not isinstance(data, dict):
         return None
     return cast(BeepObjectRecord, data)
@@ -208,39 +207,66 @@ def retention_reason(
         return cast(RetentionReason, pin_reason)
 
     local_keys = _local_pubkeys() if local_pubkeys is None else local_pubkeys
+
     if obj["author"] not in local_keys:
         followed_pubkeys = _followed_pubkeys(local_keys)
+
         if obj["author"] in followed_pubkeys and obj["type"] in {
             "post",
             "comment",
             "share",
             "quote",
             "profile",
+            "tombstone",
             "follow",
             "iro",
         }:
             return "following"
 
-        local_usernames = _local_usernames()
-        if obj["type"] in {"chat", "dm"} and _chat_related_to_local_users(
-            obj, local_usernames
-        ):
-            return "chat_participant"
-        if obj["type"] in {
-            "room",
-            "room_event",
-            "room_message",
-        } and _room_related_to_local_users(
-            obj,
-            local_pubkeys=local_keys,
-            local_usernames=local_usernames,
-        ):
-            return "room_participant"
-        return None
+    local_usernames = _local_usernames()
+
+    if obj["type"] in {"chat", "dm"} and _chat_related_to_local_users(
+        obj, local_usernames
+    ):
+        return "chat_participant"
+
+    if obj["type"] in {
+        "room",
+        "room_event",
+        "room_message",
+    } and _room_related_to_local_users(
+        obj,
+        local_pubkeys=local_keys,
+        local_usernames=local_usernames,
+    ):
+        return "room_participant"
+
+    return None
 
     if obj["type"] in {"profile", "iro"}:
         return "identity"
+
     return "authored"
+
+
+def tombstones_for(target_id: str) -> list[BeepObjectRecord]:
+    """Return valid tombstones for a target object."""
+
+    target = get_object(target_id)
+    tombstones: list[BeepObjectRecord] = []
+    for obj in query_objects(obj_type="tombstone"):
+        if _string_meta_value(obj, "target") != target_id:
+            continue
+        if target is not None and obj["author"] != target["author"]:
+            continue
+        tombstones.append(obj)
+    return sorted(tombstones, key=lambda item: (item["timestamp"], item["id"]))
+
+
+def is_tombstoned(target_id: str) -> bool:
+    """Return whether a target object has an authoritative tombstone."""
+
+    return bool(tombstones_for(target_id))
 
 
 def prune_objects(*, dry_run: bool = True) -> PruneReport:

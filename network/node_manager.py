@@ -34,6 +34,15 @@ class NodeRuntimeRecord(TypedDict):
     pid: int
 
 
+class NodeHealthRecord(TypedDict):
+    """Health details reported by a running node."""
+
+    reachable: bool
+    objects: int | None
+    relay_only_mode: bool | None
+    error: str | None
+
+
 def load_node_runtime() -> NodeRuntimeRecord | None:
     """Load the persisted local node runtime record if valid."""
 
@@ -180,6 +189,44 @@ def node_runtime_reachable(runtime: NodeRuntimeRecord | None = None) -> bool:
     return _node_is_reachable(record["url"])
 
 
+def node_runtime_health(runtime: NodeRuntimeRecord | None = None) -> NodeHealthRecord:
+    """Return structured health for the tracked node runtime."""
+
+    record = load_node_runtime() if runtime is None else runtime
+    if record is None:
+        return {
+            "reachable": False,
+            "objects": None,
+            "relay_only_mode": None,
+            "error": "node is not running",
+        }
+    try:
+        response = requests.get(f"{record['url']}/health", timeout=1.5)
+        if response.status_code != 200:
+            return {
+                "reachable": False,
+                "objects": None,
+                "relay_only_mode": None,
+                "error": f"HTTP {response.status_code}",
+            }
+        payload = response.json()
+    except Exception as exc:
+        return {
+            "reachable": False,
+            "objects": None,
+            "relay_only_mode": None,
+            "error": str(exc),
+        }
+    objects = payload.get("objects") if isinstance(payload, dict) else None
+    relay_only = payload.get("relay_only_mode") if isinstance(payload, dict) else None
+    return {
+        "reachable": True,
+        "objects": objects if isinstance(objects, int) else None,
+        "relay_only_mode": relay_only if isinstance(relay_only, bool) else None,
+        "error": None,
+    }
+
+
 def _spawn_background_node(
     username: str,
     pubkey: str,
@@ -269,7 +316,7 @@ def _node_is_reachable(base_url: str) -> bool:
     """Return whether the local background node answers health-like requests."""
 
     try:
-        response = requests.get(f"{base_url}/objects", timeout=1.0)
+        response = requests.get(f"{base_url}/health", timeout=1.0)
     except requests.RequestException:
         return False
     return response.status_code == 200

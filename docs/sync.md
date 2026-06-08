@@ -38,6 +38,7 @@ beep node disable
 The node runtime exposes object exchange endpoints:
 
 ```text
+GET  /health
 GET  /objects
 GET  /object/{object_id}
 POST /object
@@ -52,11 +53,14 @@ GET  /resolve/{identifier}
 
 For each configured target, Beep:
 
-1. Fetches the remote object ID list.
-2. Computes which IDs are missing locally.
+1. Fetches paginated remote inventory pages with cursors.
+2. Computes which IDs are missing locally for each page.
 3. Fetches each missing object by ID.
 4. Verifies schema, ID, and signature.
 5. Stores valid objects locally.
+
+Older nodes that do not support paginated inventory still work through the
+legacy `/objects` full-list fallback.
 
 Invalid objects are rejected.
 
@@ -75,13 +79,33 @@ encrypted room metadata or an access-aware sync protocol.
 The node applies basic public POST guardrails:
 
 ```text
-BEEP_MAX_OBJECT_BYTES       default 262144
-BEEP_MAX_POSTS_PER_MINUTE   default 60
+max_object_bytes
+max_posts_per_minute
+max_objects_per_author
+max_objects_per_ip
+relay_retention_limit
+denylisted_authors
+denylisted_ips
 ```
 
 These limits protect the local process from the simplest oversized-body and
 rapid-post abuse. Public relays should still run behind infrastructure-level
 rate limits, request logging, object retention caps, and abuse monitoring.
+
+Private peer networks can enable token authentication:
+
+```text
+beep relay policy set peer-auth on
+beep relay policy set peer-token <token>
+```
+
+Authenticated peers send `X-Beep-Peer-Token` on sync requests. This is a shared
+secret mode for private networks, not a substitute for per-peer public-key
+authorization.
+
+`GET /health` reports reachability, object count, relay-only mode, and runtime
+limits. `beep network check` uses this endpoint before falling back to legacy
+object-list probing.
 
 ## Recovery Sync
 
@@ -102,7 +126,8 @@ objects it has received through sync. See [relay-setup.md](relay-setup.md).
 
 ## Limitations
 
-- Sync currently uses inventory-style scans rather than delta negotiation.
+- Sync uses cursor-paginated inventory, but it does not yet use bloom filters or
+  cryptographic set reconciliation.
 - Availability depends on configured peers and relays being reachable.
 - Metadata is visible to peers that receive replicated objects.
 - The in-process rate limiter is not a durable peer reputation system.

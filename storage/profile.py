@@ -47,6 +47,7 @@ def _default_user_record(username: str, pubkey: str) -> UserRecord:
         "following": [],
         "posts": [],
         "shared": [],
+        "revoked_key_ids": [],
     }
 
 
@@ -67,6 +68,8 @@ def _copy_string_list(source: dict[str, object], user: UserRecord, key: str) -> 
         user["posts"] = filtered
     elif key == "shared":
         user["shared"] = filtered
+    elif key == "revoked_key_ids":
+        user["revoked_key_ids"] = filtered
 
 
 def _optional_string(value: object) -> str | None:
@@ -100,6 +103,7 @@ def _normalize_user_record(username: str, raw_user: object) -> UserRecord:
     _copy_string_list(raw_user_data, user, "following")
     _copy_string_list(raw_user_data, user, "posts")
     _copy_string_list(raw_user_data, user, "shared")
+    _copy_string_list(raw_user_data, user, "revoked_key_ids")
 
     username_value = raw_user_data.get("username")
     if isinstance(username_value, str) and username_value:
@@ -177,7 +181,10 @@ def _normalize_pubkey(users: dict[str, UserRecord]) -> bool:
             changed = True
 
         if not user["enc_pubkey"]:
-            _, exchange_pub = load_or_create_exchange_keys(username)
+            _, exchange_pub = load_or_create_exchange_keys(
+                username,
+                epoch=user["key_derivation_version"],
+            )
             user["enc_pubkey"] = exchange_pubkey_to_str(exchange_pub)
             changed = True
 
@@ -466,6 +473,53 @@ def get_rsa_fingerprint(identifier: str) -> str | None:
     return None
 
 
+def rotate_encryption_key(username: str, reason: str = "user_requested") -> str:
+    """Rotate local encryption material and publish a signed revocation object."""
+
+    users = load_users()
+    user = users.get(username)
+    if user is None:
+        raise ValueError(f"Username '{username}' not found")
+
+    old_key_id = user["enc_fingerprint"]
+    next_epoch = user["key_derivation_version"] + 1
+    _, exchange_pub = load_or_create_exchange_keys(username, epoch=next_epoch)
+    new_enc_pubkey = exchange_pubkey_to_str(exchange_pub)
+    new_key_id = encryption_key_fingerprint(new_enc_pubkey)
+
+    user["key_derivation_version"] = next_epoch
+    user["enc_pubkey"] = new_enc_pubkey
+    user["enc_fingerprint"] = new_key_id
+    revoked = list(user.get("revoked_key_ids", []))
+    if old_key_id not in revoked:
+        revoked.append(old_key_id)
+    user["revoked_key_ids"] = revoked
+    users[username] = user
+    save_users(users)
+
+    from core.object import BeepObject
+    from storage.objects import save_object
+
+    obj = BeepObject.create_object(
+        type_="key_revocation",
+        author_pubkey=user["pubkey"],
+        content="rotate encryption key",
+        meta={
+            "action": "rotate",
+            "key_scope": "encryption",
+            "old_key_id": old_key_id,
+            "new_key_id": new_key_id,
+            "reason": reason,
+        },
+    )
+    save_object(obj.to_dict())
+    _publish_profile(user)
+    from storage.iro import publish_local_iro
+
+    publish_local_iro(username)
+    return obj.id or ""
+
+
 def _publish_profile(user: UserRecord) -> None:
     """Publish the current user profile as an immutable object."""
 
@@ -497,6 +551,8 @@ def _profile_meta(user: UserRecord) -> ProfileMeta:
         meta["rsa_pubkey"] = user["rsa_pubkey"]
     if "rsa_fingerprint" in user:
         meta["rsa_fingerprint"] = user["rsa_fingerprint"]
+    if user.get("revoked_key_ids"):
+        meta["revoked_key_ids"] = user["revoked_key_ids"]
     return meta
 
 
@@ -522,6 +578,9 @@ def _build_remote_user(obj: BeepObjectRecord) -> UserRecord:
     user["enc_pubkey"] = enc_pubkey
     user["enc_fingerprint"] = enc_fingerprint
     user["password"] = ""
+    revoked = meta.get("revoked_key_ids")
+    if isinstance(revoked, list):
+        user["revoked_key_ids"] = [item for item in revoked if isinstance(item, str)]
 
     for key in ("seed_fingerprint", "signing_scheme", "encryption_scheme"):
         value = meta.get(key)

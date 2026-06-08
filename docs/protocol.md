@@ -76,6 +76,8 @@ comment
 share
 quote
 profile
+key_revocation
+tombstone
 presence
 iro
 follow
@@ -112,6 +114,32 @@ meta.username
 
 It must publish either deterministic exchange key metadata or legacy RSA
 metadata. New identities publish deterministic X25519 metadata.
+
+`key_revocation` requires:
+
+```text
+meta.action       rotate | revoke
+meta.key_scope    encryption
+meta.old_key_id
+meta.new_key_id
+meta.reason
+```
+
+Key revocation objects are signed by the identity that owns the key material.
+Current rotation support advances the deterministic X25519 encryption epoch and
+publishes the old key ID in profile metadata as `revoked_key_ids`.
+
+`tombstone` requires:
+
+```text
+meta.target
+meta.target_type
+meta.reason       deleted | retracted | superseded
+```
+
+Tombstones are signed immutable delete/retraction markers. They do not erase the
+target object from storage; readers should treat an authoritative tombstone from
+the target author as the current deletion state.
 
 ### Presence Objects
 

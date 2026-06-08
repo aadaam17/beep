@@ -51,6 +51,38 @@ class SchemaValidationTests(unittest.TestCase):
         self.assertIn("meta.endpoint is required", errors)
         self.assertIn("meta.reachable_via is required", errors)
 
+    def test_tombstone_requires_target_metadata(self):
+        obj = {
+            "id": "abc",
+            "type": "tombstone",
+            "author": "00" * 32,
+            "timestamp": 1,
+            "content": "[deleted]",
+            "signature": "11" * 64,
+            "meta": {"target": "post_1"},
+        }
+
+        errors = validate_object_schema(obj)
+
+        self.assertIn("meta.target_type is required", errors)
+        self.assertIn("meta.reason is required", errors)
+
+    def test_key_revocation_requires_rotation_metadata(self):
+        obj = {
+            "id": "abc",
+            "type": "key_revocation",
+            "author": "00" * 32,
+            "timestamp": 1,
+            "content": "rotate",
+            "signature": "11" * 64,
+            "meta": {"action": "rotate", "key_scope": "encryption"},
+        }
+
+        errors = validate_object_schema(obj)
+
+        self.assertIn("meta.old_key_id is required", errors)
+        self.assertIn("meta.new_key_id is required", errors)
+
     def test_presence_ttl_must_be_integer(self):
         obj = {
             "id": "abc",
