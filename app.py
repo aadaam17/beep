@@ -566,7 +566,7 @@ def _print_shell_banner() -> None:
     print("==========")
     print("Command mode: `beep post \"hello\"`")
     print("Live mode: `beep fyp --live`")
-    print("Interactive mode: this shell")
+    print("Interactive mode: Textual shell")
     print("Type `beep help` for commands. Press Ctrl+C to exit.")
 
 

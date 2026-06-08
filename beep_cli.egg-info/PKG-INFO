@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: beep-cli
-Version: 0.1.3
+Version: 0.1.4
 Summary: Anonymous CLI social network with interactive Textual shell
 License-Expression: Apache-2.0
 Project-URL: Homepage, https://github.com/aadaam17/Beep
@@ -418,9 +418,10 @@ The node exposes endpoints for:
 - Recent object listing
 - Identity resolution by username or handle
 
-Incoming object POSTs are bounded by request-size and per-client rate limits.
-Use `BEEP_MAX_OBJECT_BYTES` and `BEEP_MAX_POSTS_PER_MINUTE` to tune those
-defaults for a relay deployment.
+Incoming object POSTs are bounded by request-size, per-client rate limits,
+author/IP quotas, retention limits, and optional denylists. Tune these with
+`beep relay policy set max-object-bytes`, `max-posts-per-minute`,
+`max-objects-per-author`, `max-objects-per-ip`, and `retention-limit`.
 
 Private room objects are not auto-pushed to general peers or relays. This
 reduces accidental metadata leakage, but production private rooms still need

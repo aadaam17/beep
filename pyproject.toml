@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "beep-cli"
-version = "0.1.3"
+version = "0.1.4"
 description = "Anonymous CLI social network with interactive Textual shell"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -62,3 +62,4 @@ exclude = ["docs*", "tests*", "venv*", "__pycache__*"]
 
 [tool.setuptools.package-data]
 crypto = ["wordlists/*.txt"]
+core = ["protocol_schemas/v1/*.json"]

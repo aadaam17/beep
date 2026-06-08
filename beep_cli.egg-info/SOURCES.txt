@@ -38,6 +38,7 @@ core/hash.py
 core/identity.py
 core/index.py
 core/object.py
+core/object_policy.py
 core/object_store.py
 core/protocol.py
 core/schemas.py
@@ -45,6 +46,7 @@ core/signing.py
 core/thread_view.py
 core/types.py
 core/verify.py
+core/protocol_schemas/v1/object-types.schema.json
 crypto/__init__.py
 crypto/keys.py
 crypto/mnemonic.py

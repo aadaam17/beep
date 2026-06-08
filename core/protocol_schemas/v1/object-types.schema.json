@@ -1,0 +1,180 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://beep.local/protocol/v1/object-types.schema.json",
+  "title": "Beep object type schemas",
+  "protocol": "beep-object-v1",
+  "protocol_version": 1,
+  "definitions": {
+    "encryptedEnvelope": {
+      "type": "object",
+      "required": ["nonce", "ciphertext", "keys"],
+      "properties": {
+        "nonce": {"type": "string"},
+        "ciphertext": {"type": "string"},
+        "keys": {"type": ["array", "object"]},
+        "scheme": {"type": "string"}
+      }
+    },
+    "recoveryEnvelope": {
+      "type": "object",
+      "required": ["scheme", "nonce", "ciphertext"],
+      "properties": {
+        "scheme": {"const": "seed-recovery-aes-gcm-v1"},
+        "nonce": {"type": "string"},
+        "ciphertext": {"type": "string"}
+      }
+    }
+  },
+  "object_types": {
+    "post": {"meta": {}},
+    "comment": {
+      "meta": {
+        "required": ["parent_id"],
+        "properties": {"parent_id": {"type": "string"}}
+      }
+    },
+    "share": {
+      "meta": {
+        "required": ["shared_from"],
+        "properties": {"shared_from": {"type": "string"}}
+      }
+    },
+    "quote": {
+      "meta": {
+        "required": ["shared_from"],
+        "properties": {"shared_from": {"type": "string"}}
+      }
+    },
+    "profile": {
+      "meta": {
+        "required": ["username"],
+        "properties": {
+          "username": {"type": "string"},
+          "enc_pubkey": {"type": "string"},
+          "enc_fingerprint": {"type": "string"},
+          "rsa_pubkey": {"type": "string"},
+          "rsa_fingerprint": {"type": "string"},
+          "revoked_key_ids": {"type": "array"}
+        },
+        "anyRequired": [["enc_pubkey"], ["enc_fingerprint"], ["rsa_pubkey"], ["rsa_fingerprint"]]
+      }
+    },
+    "key_revocation": {
+      "meta": {
+        "required": ["action", "key_scope", "old_key_id", "new_key_id", "reason"],
+        "properties": {
+          "action": {"type": "string", "enum": ["rotate", "revoke"]},
+          "key_scope": {"type": "string"},
+          "old_key_id": {"type": "string"},
+          "new_key_id": {"type": "string"},
+          "reason": {"type": "string"}
+        }
+      }
+    },
+    "tombstone": {
+      "meta": {
+        "required": ["target", "target_type", "reason"],
+        "properties": {
+          "target": {"type": "string"},
+          "target_type": {"type": "string"},
+          "reason": {"type": "string", "enum": ["deleted", "retracted", "superseded"]}
+        }
+      }
+    },
+    "presence": {
+      "meta": {
+        "required": ["username", "endpoint", "reachable_via"],
+        "properties": {
+          "username": {"type": "string"},
+          "endpoint": {"type": "string"},
+          "reachable_via": {"type": "string"},
+          "ttl": {"type": "integer"},
+          "relay_hints": {"type": "array"}
+        }
+      }
+    },
+    "iro": {
+      "meta": {
+        "required": ["owner_pubkey", "version", "payload_kind"],
+        "properties": {
+          "owner_pubkey": {"type": "string"},
+          "version": {"type": "integer"},
+          "payload_kind": {"const": "iro_index"},
+          "encrypted": {"$ref": "#/definitions/encryptedEnvelope"},
+          "legacy_encrypted": {"$ref": "#/definitions/encryptedEnvelope"},
+          "recovery_encrypted": {"$ref": "#/definitions/recoveryEnvelope"}
+        },
+        "anyRequired": [["encrypted"], ["recovery_encrypted"]]
+      }
+    },
+    "follow": {
+      "meta": {
+        "required": ["action", "target"],
+        "properties": {
+          "action": {"type": "string", "enum": ["follow", "unfollow"]},
+          "target": {"type": "string"}
+        }
+      }
+    },
+    "chat": {
+      "meta": {
+        "required": ["chat"],
+        "properties": {"chat": {"type": "string"}}
+      }
+    },
+    "dm": {
+      "meta": {
+        "required": ["chat", "encrypted"],
+        "properties": {
+          "chat": {"type": "string"},
+          "encrypted": {"$ref": "#/definitions/encryptedEnvelope"}
+        }
+      }
+    },
+    "room": {
+      "meta": {
+        "required": ["room_id", "private", "owner_pubkey", "key_epoch"],
+        "properties": {
+          "room_id": {"type": "string"},
+          "private": {"type": "boolean"},
+          "owner_pubkey": {"type": "string"},
+          "key_epoch": {"type": "integer"},
+          "ttl": {"type": ["integer", "null"]}
+        }
+      }
+    },
+    "room_event": {
+      "meta": {
+        "required": ["room", "action"],
+        "properties": {
+          "room": {"type": "string"},
+          "action": {"type": "string", "enum": ["invite", "join", "leave", "mod", "unmod", "mute", "unmute", "kick", "dissolve"]},
+          "target_pubkey": {"type": "string"},
+          "target_key_id": {"type": "string"},
+          "encrypted": {"$ref": "#/definitions/encryptedEnvelope"}
+        },
+        "conditionalRequired": {
+          "action": {
+            "invite": ["target_pubkey", "target_key_id", "encrypted"],
+            "join": ["target_pubkey"],
+            "leave": ["target_pubkey"],
+            "mod": ["target_pubkey"],
+            "unmod": ["target_pubkey"],
+            "mute": ["target_pubkey"],
+            "unmute": ["target_pubkey"],
+            "kick": ["target_pubkey"]
+          }
+        }
+      }
+    },
+    "room_message": {
+      "meta": {
+        "required": ["room", "encrypted"],
+        "properties": {
+          "room": {"type": "string"},
+          "encrypted": {"$ref": "#/definitions/encryptedEnvelope"}
+        }
+      }
+    }
+  }
+}

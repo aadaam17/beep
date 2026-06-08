@@ -8,6 +8,7 @@ from typing import TypeAlias
 
 import requests
 
+from core.object_policy import object_visibility
 from core.types import BeepObjectRecord
 from core.verify import verify_object
 from storage.network_policy import peer_auth_header
@@ -385,20 +386,30 @@ def _looks_like_object(payload: object) -> bool:
 def _object_is_publicly_replicable(obj: BeepObjectRecord) -> bool:
     """Return whether an object can be pushed to general peers/relays."""
 
-    obj_type = obj.get("type")
+    if obj.get("type") == "room_event":
+        return _room_scoped_object_is_public(obj)
+
+    visibility = object_visibility(obj)
+    if visibility == "public":
+        return True
+    if visibility == "public_encrypted":
+        return True
+    if obj.get("type") != "room_message":
+        return False
+
+    return _room_scoped_object_is_public(obj)
+
+
+def _room_scoped_object_is_public(obj: BeepObjectRecord) -> bool:
+    """Return whether a room-scoped object belongs to a public room."""
+
     meta = obj.get("meta")
     if not isinstance(meta, dict):
         return False
 
-    if obj_type == "room":
-        return not bool(meta.get("private"))
-
-    if obj_type not in {"room_event", "room_message"}:
-        return True
-
     room_id = meta.get("room")
     if not isinstance(room_id, str) or not room_id:
-        return True
+        return False
 
     try:
         from storage.room_service import RoomService

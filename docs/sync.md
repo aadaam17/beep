@@ -74,6 +74,11 @@ or relays. That reduces accidental private-room existence leaks during normal
 replication. It is not a full privacy model: production private rooms still need
 encrypted room metadata or an access-aware sync protocol.
 
+Sync and retention use the object visibility classes documented in
+[data-model.md](data-model.md): public objects are relay eligible, IROs are
+public encrypted recovery objects, and private encrypted objects only sync
+through participant-aware paths.
+
 ## Abuse Controls
 
 The node applies basic public POST guardrails:

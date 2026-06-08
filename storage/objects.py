@@ -6,6 +6,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Literal, TypeGuard, TypedDict, cast
 
+from core.object_policy import object_visibility
 from core.types import BeepObjectRecord, ObjectSerializable
 from core.verify import verify_object
 from storage.atomic import atomic_write_json, read_json_with_backup
@@ -208,6 +209,34 @@ def retention_reason(
 
     local_keys = _local_pubkeys() if local_pubkeys is None else local_pubkeys
 
+    if obj["author"] in local_keys:
+        if obj["type"] in {"profile", "iro"}:
+            return "identity"
+        return "authored"
+
+    local_usernames = _local_usernames()
+    if obj["type"] in {
+        "room",
+        "room_event",
+        "room_message",
+    }:
+        if _room_related_to_local_users(
+            obj,
+            local_pubkeys=local_keys,
+            local_usernames=local_usernames,
+        ):
+            return "room_participant"
+        if object_visibility(obj) == "private_encrypted":
+            return None
+
+    visibility = object_visibility(obj)
+    if visibility == "private_encrypted":
+        if obj["type"] in {"chat", "dm"} and _chat_related_to_local_users(
+            obj, local_usernames
+        ):
+            return "chat_participant"
+        return None
+
     if obj["author"] not in local_keys:
         followed_pubkeys = _followed_pubkeys(local_keys)
 
@@ -223,30 +252,7 @@ def retention_reason(
         }:
             return "following"
 
-    local_usernames = _local_usernames()
-
-    if obj["type"] in {"chat", "dm"} and _chat_related_to_local_users(
-        obj, local_usernames
-    ):
-        return "chat_participant"
-
-    if obj["type"] in {
-        "room",
-        "room_event",
-        "room_message",
-    } and _room_related_to_local_users(
-        obj,
-        local_pubkeys=local_keys,
-        local_usernames=local_usernames,
-    ):
-        return "room_participant"
-
     return None
-
-    if obj["type"] in {"profile", "iro"}:
-        return "identity"
-
-    return "authored"
 
 
 def tombstones_for(target_id: str) -> list[BeepObjectRecord]:

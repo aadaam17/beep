@@ -1,10 +1,18 @@
 import unittest
 
+from core.object_policy import object_visibility
 from core.schemas import validate_object_schema
+from core.schemas import load_object_type_schemas
 from core.verify import _protocol_is_supported, verify_object
 
 
 class SchemaValidationTests(unittest.TestCase):
+    def test_schema_definitions_are_loaded_from_protocol_json(self):
+        schema_doc = load_object_type_schemas()
+
+        self.assertEqual(schema_doc["protocol"], "beep-object-v1")
+        self.assertIn("room_event", schema_doc["object_types"])
+
     def test_comment_requires_parent_id(self):
         obj = {
             "id": "abc",
@@ -160,6 +168,37 @@ class SchemaValidationTests(unittest.TestCase):
         }
 
         self.assertFalse(_protocol_is_supported(obj))
+
+    def test_object_visibility_separates_public_and_private_objects(self):
+        public_room = {
+            "id": "room-public",
+            "type": "room",
+            "author": "00" * 32,
+            "timestamp": 1,
+            "content": "public",
+            "signature": "11" * 64,
+            "meta": {
+                "room_id": "general",
+                "private": False,
+                "owner_pubkey": "00" * 32,
+                "key_epoch": 1,
+            },
+        }
+        private_room_message = {
+            "id": "room-message",
+            "type": "room_message",
+            "author": "00" * 32,
+            "timestamp": 1,
+            "content": "[encrypted]",
+            "signature": "11" * 64,
+            "meta": {
+                "room": "private",
+                "encrypted": {"nonce": "n", "ciphertext": "c", "keys": []},
+            },
+        }
+
+        self.assertEqual(object_visibility(public_room), "public")
+        self.assertEqual(object_visibility(private_room_message), "private_encrypted")
 
 
 if __name__ == "__main__":

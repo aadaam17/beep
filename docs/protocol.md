@@ -3,6 +3,10 @@
 This document describes the current Beep object protocol as implemented in the
 codebase. The protocol is alpha and may change.
 
+The versioned object schema and conflict policy are also documented in
+[data-model.md](data-model.md). Runtime schema definitions live in
+`core/protocol_schemas/v1/object-types.schema.json`.
+
 ## Object Envelope
 
 Every stored Beep object uses the same outer envelope:
@@ -65,6 +69,20 @@ Before an object is stored or accepted from a peer, Beep verifies:
 5. The signature verifies against the `author` public key.
 
 Objects that fail verification are rejected.
+
+## Conflict Resolution
+
+Objects are immutable, so Beep resolves conflicts by replay or deterministic
+selection:
+
+- profiles: latest signed profile by `(timestamp, id)` per author
+- follows: replay follow/unfollow events by `(timestamp, id)` per author/target
+- presence: freshest unexpired presence by `(timestamp, id)` per author
+- room events: replay authorized events by `(timestamp, id)`
+- IROs: highest decryptable payload version, then newest `(timestamp, id)`
+
+These rules are protocol behavior and should be covered by compatibility tests
+when they change.
 
 ## Object Types
 
