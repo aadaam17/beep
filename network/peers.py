@@ -6,6 +6,7 @@ from typing import Iterable
 from urllib.parse import urlparse, urlunparse
 
 from storage.atomic import atomic_write_json, read_json_with_backup
+from storage.app_config import configured_peers
 
 PEER_FILE = Path.home() / ".beep" / "peers.json"
 PEER_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -38,17 +39,14 @@ def normalize_peer_url(peer_url: str) -> str:
 
 
 def load_peers() -> list[str]:
-    if not PEER_FILE.exists():
-        return []
-
-    peers = read_json_with_backup(PEER_FILE, default=[])
+    peers = read_json_with_backup(PEER_FILE, default=[]) if PEER_FILE.exists() else []
     if peers is None:
-        return []
+        peers = []
 
     if not isinstance(peers, list):
-        return []
+        peers = []
 
-    normalized: list[str] = []
+    normalized_saved: list[str] = []
     seen = set()
 
     for peer in peers:
@@ -61,10 +59,21 @@ def load_peers() -> list[str]:
         if candidate in seen:
             continue
         seen.add(candidate)
-        normalized.append(candidate)
+        normalized_saved.append(candidate)
 
-    if normalized != peers:
-        save_peers(normalized)
+    if normalized_saved != peers:
+        save_peers(normalized_saved)
+
+    normalized = list(normalized_saved)
+    for peer in configured_peers():
+        try:
+            candidate = normalize_peer_url(peer)
+        except ValueError:
+            continue
+        if candidate in seen:
+            continue
+        seen.add(candidate)
+        normalized.append(candidate)
 
     return normalized
 

@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Literal, TypedDict, cast
 
 from storage.atomic import atomic_write_json, read_json_with_backup
+from storage.app_config import network_policy_overrides
 
 NetworkStrategy = Literal["prefer-direct", "direct-only", "relay-first"]
 
@@ -58,15 +59,25 @@ DEFAULT_POLICY: NetworkPolicy = {
 def load_network_policy() -> NetworkPolicy:
     """Load the saved network policy or return sane defaults."""
 
+    return _load_network_policy(apply_config=True)
+
+
+def _load_network_policy(*, apply_config: bool) -> NetworkPolicy:
+    """Load network policy, optionally overlaying TOML config overrides."""
+
+    policy: NetworkPolicy = dict(DEFAULT_POLICY)
     raw = read_json_with_backup(POLICY_FILE)
     if raw is None:
-        return dict(DEFAULT_POLICY)
+        if apply_config:
+            _apply_config_overrides(policy)
+        return policy
 
     if not isinstance(raw, dict):
-        return dict(DEFAULT_POLICY)
+        if apply_config:
+            _apply_config_overrides(policy)
+        return policy
 
     data = cast(dict[str, object], raw)
-    policy: NetworkPolicy = dict(DEFAULT_POLICY)
 
     relay_enabled = data.get("relay_enabled")
     if isinstance(relay_enabled, bool):
@@ -121,6 +132,8 @@ def load_network_policy() -> NetworkPolicy:
     if isinstance(peer_auth_token, str):
         policy["peer_auth_token"] = peer_auth_token
 
+    if apply_config:
+        _apply_config_overrides(policy)
     return policy
 
 
@@ -130,10 +143,17 @@ def save_network_policy(policy: NetworkPolicy) -> None:
     atomic_write_json(POLICY_FILE, policy, indent=2)
 
 
+def _apply_config_overrides(policy: NetworkPolicy) -> None:
+    """Overlay validated config-file settings on the runtime policy."""
+
+    for key, value in network_policy_overrides().items():
+        policy[key] = value
+
+
 def update_network_policy(**changes: object) -> NetworkPolicy:
     """Apply validated updates to the saved network policy."""
 
-    policy = load_network_policy()
+    policy = _load_network_policy(apply_config=False)
 
     relay_enabled = changes.get("relay_enabled")
     if isinstance(relay_enabled, bool):

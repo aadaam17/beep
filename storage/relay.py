@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Iterable
 
 from network.peers import normalize_peer_url
+from storage.app_config import configured_relays
 from storage.atomic import atomic_write_json, read_json_with_backup
 from storage.network_policy import order_network_targets
 
@@ -17,17 +18,14 @@ RELAY_FILE.parent.mkdir(parents=True, exist_ok=True)
 def load_relays() -> list[str]:
     """Load configured relay endpoints."""
 
-    if not RELAY_FILE.exists():
-        return []
-
-    relays = read_json_with_backup(RELAY_FILE, default=[])
+    relays = read_json_with_backup(RELAY_FILE, default=[]) if RELAY_FILE.exists() else []
     if relays is None:
-        return []
+        relays = []
 
     if not isinstance(relays, list):
-        return []
+        relays = []
 
-    normalized: list[str] = []
+    normalized_saved: list[str] = []
     seen: set[str] = set()
     for relay in relays:
         if not isinstance(relay, str):
@@ -39,10 +37,21 @@ def load_relays() -> list[str]:
         if candidate in seen:
             continue
         seen.add(candidate)
-        normalized.append(candidate)
+        normalized_saved.append(candidate)
 
-    if normalized != relays:
-        save_relays(normalized)
+    if normalized_saved != relays:
+        save_relays(normalized_saved)
+
+    normalized = list(normalized_saved)
+    for relay in configured_relays():
+        try:
+            candidate = normalize_peer_url(relay)
+        except ValueError:
+            continue
+        if candidate in seen:
+            continue
+        seen.add(candidate)
+        normalized.append(candidate)
     return normalized
 
 

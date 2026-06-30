@@ -27,6 +27,7 @@ Identity & Session
   restore --file <path>                  Restore local identity from backup file
   restore --mnemonic "<phrase>" -p <pw>  Restore from mnemonic and set local password
   restore recover                        Recover missing IRO-indexed objects from peers
+  config [show|path|validate]            Inspect optional beep.toml configuration
 
 Feed
   fyp global                             Switch to global feed

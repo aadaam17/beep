@@ -314,6 +314,9 @@ beep relay remove <url>
 beep relay list
 beep relay policy
 beep sync
+beep config show
+beep config path
+beep config validate
 beep node status
 beep node enable
 beep node disable
@@ -335,6 +338,10 @@ beep relay policy set public-endpoint clear
 
 See [docs/relay-setup.md](docs/relay-setup.md) for a practical relay deployment
 guide.
+
+Optional TOML configuration is supported through `beep.toml`,
+`~/.config/beep/config.toml`, or `~/.beep/config.toml`. See
+[docs/configuration.md](docs/configuration.md).
 
 ### Storage Retention
 
