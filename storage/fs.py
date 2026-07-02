@@ -231,8 +231,20 @@ class BeepFS:
     def read_chat(self, name: str) -> ChatRecord:
         return self.chat.read_chat(name)
 
-    def chat_say(self, chat_peer: str, sender: str, message: str) -> None:
-        return self.chat.chat_say(chat_peer, sender, message)
+    def chat_say(
+        self,
+        chat_peer: str,
+        sender: str,
+        message: str,
+        *,
+        cipher_profile: str | None = None,
+    ) -> None:
+        return self.chat.chat_say(
+            chat_peer,
+            sender,
+            message,
+            cipher_profile=cipher_profile,
+        )
 
     def chat_read_messages(
         self,

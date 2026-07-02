@@ -257,12 +257,27 @@ beep unfollow <username|username#handle>
 beep chat
 beep chat <username|username#handle>
 beep chat <username|username#handle> --live
+beep chat <username|username#handle> "message" --cipher <profile>
 beep say "message"
+beep say "message" --cipher <profile>
 beep read [--all | <number>]
 beep exit
 ```
 
 `say` sends to the active chat when the shell is in chat mode.
+
+Optional Private Meaning Layer profiles can encode message text before
+encryption and decode it after decryption. See
+[docs/private-meaning-layer.md](docs/private-meaning-layer.md).
+
+```text
+beep cipher create ops
+beep cipher set ops "meet tonight" X91
+beep cipher export ops
+beep cipher import ops.beepcipher
+beep cipher rotate ops
+beep cipher revoke ops
+```
 
 ### Rooms
 
@@ -315,8 +330,10 @@ beep relay list
 beep relay policy
 beep sync
 beep config show
+beep config effective
 beep config path
 beep config validate
+beep config init
 beep node status
 beep node enable
 beep node disable

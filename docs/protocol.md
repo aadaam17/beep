@@ -208,6 +208,18 @@ meta.encrypted
 
 The encrypted envelope stores ciphertext and recipient key slots.
 
+Optional Private Meaning Layer metadata can identify a local semantic profile
+used before encryption:
+
+```text
+meta.pml_version
+meta.cipher_profile
+meta.cipher_version
+meta.cipher_fingerprint
+```
+
+The profile mapping is local-only and is not replicated in DM objects.
+
 ### Room Objects
 
 `room` requires:

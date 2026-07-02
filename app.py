@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import shlex
 import time
 from datetime import datetime
@@ -15,6 +16,7 @@ from commands import (
     auth,
     backup,
     chat,
+    cipher,
     config_cmd,
     connect,
     feed,
@@ -52,6 +54,7 @@ COMMAND_MODULES: dict[str, list[str]] = {
     "profile": ["profile"],
     "follow": ["follow", "unfollow"],
     "chat": ["chat", "say", "read", "exit"],
+    "cipher": ["cipher"],
     "room": ["room", "join", "leave", "invite", "say", "late", "dissolve"],
     "feed": ["fyp", "next", "hold", "resume"],
     "moderation": ["mute", "unmute", "kick", "mod", "unmod"],
@@ -74,6 +77,7 @@ MODULE_DISPATCH: dict[str, AppDispatcher] = {
     "profile": profile.dispatch,
     "follow": follow.dispatch,
     "chat": chat.dispatch,
+    "cipher": cipher.dispatch,
     "room": room.dispatch,
     "feed": feed.dispatch,
     "moderation": moderation.dispatch,
@@ -190,16 +194,20 @@ def execute_beep_parts(parts: list[str], *, announce_context: bool = False) -> b
         print("No command provided after 'beep'")
         return True
 
-    if "--live" in parts:
-        run_live_mode(parts)
-        return True
-
     previous_mode = state.mode
     previous_chat = state.current_chat
     previous_room = state.current_room
 
     cmd_name = parts[0]
     args = " ".join(parts[1:]) if len(parts) > 1 else ""
+
+    if cmd_name in {"clear", "cls"}:
+        clear_terminal()
+        return True
+
+    if "--live" in parts:
+        run_live_mode(parts)
+        return True
 
     if cmd_name in AUTO_SYNC_BEFORE:
         sync(verbose=False)
@@ -282,6 +290,12 @@ def execute_beep_parts(parts: list[str], *, announce_context: bool = False) -> b
         )
 
     return True
+
+
+def clear_terminal() -> None:
+    """Clear the visible terminal while preserving Beep session state."""
+
+    os.system("cls" if os.name == "nt" else "clear")
 
 
 def execute_command_line(line: str, *, announce_context: bool = False) -> bool:

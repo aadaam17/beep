@@ -3,7 +3,9 @@
 Beep can load an optional TOML config file for developer and relay-operator
 settings that are inconvenient to repeat through commands or the Textual UI.
 
-Supported locations, in order:
+## Precedence
+
+Config locations are checked in this order:
 
 ```text
 BEEP_CONFIG
@@ -13,21 +15,37 @@ BEEP_CONFIG
 ~/.beep/config.toml
 ```
 
-If a config file is present and valid, its values override saved network policy
-at runtime. CLI policy commands still update `~/.beep/network_policy.json`, but
-the TOML file remains the operator override while it exists.
+Runtime order is:
+
+1. Built-in defaults
+2. Saved JSON policy/state files
+3. Valid TOML config overrides
+
+CLI policy commands still update `~/.beep/network_policy.json`. If a TOML file
+sets the same field, the TOML value remains the runtime override until removed.
+Config-defined peers and relays are merged at runtime and are not written back
+to `peers.json` or `relays.json`.
 
 ## Commands
 
 ```text
+beep config init
+beep config init ~/.config/beep/config.toml
 beep config show
+beep config effective
 beep config path
 beep config validate
 ```
 
+`show` reports the active file and sections. `effective` also prints redacted
+runtime overrides, config peers, and config relays. `validate` reports errors
+and warnings without applying any changes.
+
 ## Example
 
 ```toml
+version = 1
+
 [node]
 enabled = false
 relay_only = false
@@ -39,7 +57,7 @@ public_endpoint = "https://relay.example.net"
 presence_ttl_seconds = 86400
 presence_refresh_seconds = 900
 peer_auth_required = false
-peer_auth_token = ""
+peer_auth_token_env = "BEEP_PEER_AUTH_TOKEN"
 
 [relay]
 max_object_bytes = 262144
@@ -68,3 +86,23 @@ urls = [
 peers = ["http://127.0.0.1:8001"]
 relays = ["https://relay.example.net"]
 ```
+
+## Secrets
+
+Prefer environment-backed secrets:
+
+```toml
+[network]
+peer_auth_required = true
+peer_auth_token_env = "BEEP_PEER_AUTH_TOKEN"
+```
+
+Then start Beep with the environment variable set. A literal
+`peer_auth_token = "..."` is still supported, but `beep config effective`
+redacts it.
+
+## Diagnostics
+
+Unknown sections and keys produce warnings and are ignored. Invalid values, bad
+TOML, and unsupported config versions produce errors. When errors exist, Beep
+does not apply config overrides.

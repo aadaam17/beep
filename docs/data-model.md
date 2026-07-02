@@ -61,3 +61,18 @@ prune them.
 
 This split reduces accidental leakage and prevents public-relay retention limits
 from treating private encrypted material as ordinary public feed data.
+
+## Private Meaning Layer
+
+Direct messages may include optional PML metadata:
+
+```text
+meta.pml_version
+meta.cipher_profile
+meta.cipher_version
+meta.cipher_fingerprint
+```
+
+The encrypted DM payload contains the encoded text. The cipher mapping itself is
+stored only in the local cipher profile store under `~/.beep/ciphers/` and is
+shared out-of-band by the users who want that semantic channel.

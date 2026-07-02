@@ -27,7 +27,7 @@ Identity & Session
   restore --file <path>                  Restore local identity from backup file
   restore --mnemonic "<phrase>" -p <pw>  Restore from mnemonic and set local password
   restore recover                        Recover missing IRO-indexed objects from peers
-  config [show|path|validate]            Inspect optional beep.toml configuration
+  config [show|effective|path|validate|init] Inspect optional beep.toml configuration
 
 Feed
   fyp global                             Switch to global feed
@@ -61,10 +61,20 @@ Follow
 Chat
   chat                                   List chats
   chat <username|username#handle>        Enter direct chat
+  chat <user> "message" --cipher <p>     Send a PML-encoded direct message
   chat <username|username#handle> --live Tail a direct chat live
-  say "message"                          Send message in chat or room
+  say "message" [--cipher <profile>]     Send message in chat or room
   read [--all | <number>]                Read chat messages
   exit                                   Leave current chat
+
+Private Meaning Layer
+  cipher list                            List local cipher profiles
+  cipher create <profile>                Create a local cipher profile
+  cipher set <p> "phrase" <code>         Add phrase-to-code mapping
+  cipher export <profile> [path]         Export .beepcipher file
+  cipher import <path> [--as <profile>]  Import .beepcipher file
+  cipher rotate <profile>                Create next profile version
+  cipher revoke <profile> [version]      Stop using a profile version
 
 Rooms
   room                                   List rooms
@@ -115,6 +125,7 @@ Node
 Help
   beep                                   Open persistent text command mode
   shell                                  Open the Textual interactive app shell
+  clear | cls                            Clear the terminal screen
   help                                   Show this help
 """
     )

@@ -15,6 +15,7 @@ from storage.crypto import (
     encrypt_for_recipients,
 )
 from storage.atomic import atomic_write_json, read_json_with_backup
+from storage.ciphers import decode_text, encode_text
 from storage.objects import query_objects, save_object
 from storage.profile import get_user, get_user_by_pubkey
 
@@ -103,7 +104,14 @@ class ChatService:
             "messages": [],
         }
 
-    def chat_say(self, chat_peer: str, sender: str, message: str) -> None:
+    def chat_say(
+        self,
+        chat_peer: str,
+        sender: str,
+        message: str,
+        *,
+        cipher_profile: str | None = None,
+    ) -> None:
         """Send an encrypted direct message."""
 
         if not self.user_exists(sender) or not self.user_exists(chat_peer):
@@ -114,14 +122,27 @@ class ChatService:
         self.create_chat(None, sender, chat_peer)
         self.remember_chat(chat_id, chat_peer)
 
+        meta: dict[str, object] = {"chat": chat_id}
+        if cipher_profile:
+            message, cipher = encode_text(message, cipher_profile)
+            meta.update(
+                {
+                    "pml_version": 1,
+                    "cipher_profile": cipher["profile"],
+                    "cipher_version": cipher["version"],
+                    "cipher_fingerprint": cipher["fingerprint"],
+                }
+            )
+
         recipient_keys = self.recipient_key_map(participants)
         encrypted = encrypt_for_recipients(message, recipient_keys)
+        meta["encrypted"] = encrypted
 
         obj = BeepObject.create_object(
             type_="dm",
             author_pubkey=self.user_pubkey(sender),
             content="[encrypted]",
-            meta={"chat": chat_id, "encrypted": encrypted},
+            meta=meta,
         )
         save_object(obj.to_dict())
 
@@ -155,6 +176,7 @@ class ChatService:
                 content = decrypt_private_message(user, encrypted)
             except Exception:
                 continue
+            content = self._decode_pml_content(msg, content)
 
             visible.append(
                 {
@@ -167,6 +189,19 @@ class ChatService:
         visible.sort(key=lambda item: item["timestamp"])
         total = len(visible)
         return visible[start : start + limit], total
+
+    def _decode_pml_content(self, msg: dict[str, object], content: str) -> str:
+        """Decode PML content when the local profile is available."""
+
+        meta = msg.get("meta")
+        if not isinstance(meta, dict):
+            return content
+        profile = meta.get("cipher_profile")
+        version = meta.get("cipher_version")
+        if not isinstance(profile, str):
+            return content
+        decoded, ok = decode_text(content, profile, version if isinstance(version, int) else None)
+        return decoded if ok else content
 
     def chat_participant_pubkeys(self, user_a: str, user_b: str) -> list[str]:
         """Return sorted participant public keys for a chat."""

@@ -1,6 +1,7 @@
 # commands/chat.py
 """Chat-related CLI commands."""
 
+import shlex
 from datetime import datetime
 
 from core.identity import build_identity_handle, find_identity_matches
@@ -13,7 +14,11 @@ DEFAULT_READ = 10
 
 
 def dispatch(cmd: str, args: str, state: CommandState) -> None:
-    parts = args.split() if args else []
+    try:
+        parts = shlex.split(args) if args else []
+    except ValueError as exc:
+        print(f"Error: {exc}")
+        return
     user = state.user
 
     if not user:
@@ -52,6 +57,12 @@ def dispatch(cmd: str, args: str, state: CommandState) -> None:
             print("Error: You cannot chat with yourself")
             return
 
+        message_tokens = [part for part in parts[1:] if part != "--live"]
+        try:
+            message, cipher_profile = _extract_cipher_message(message_tokens)
+        except ValueError as exc:
+            print(f"Error: {exc}")
+            return
         try:
             fs.create_chat(None, user, target_user)
         except ValueError as e:
@@ -59,6 +70,14 @@ def dispatch(cmd: str, args: str, state: CommandState) -> None:
             return
 
         state.enter_chat(target_user)
+        if message:
+            try:
+                fs.chat_say(target_user, user, message, cipher_profile=cipher_profile)
+                suffix = f" with cipher {cipher_profile}" if cipher_profile else ""
+                print(f"[CHAT] message sent{suffix}")
+            except (PermissionError, FileNotFoundError, ValueError) as e:
+                print(f"Error: {e}")
+                return
         print(f"Entered chat with {target_user}")
         return
 
@@ -66,7 +85,12 @@ def dispatch(cmd: str, args: str, state: CommandState) -> None:
         if state.mode != Mode.CHAT:
             print("Error: 'say' can only be used inside a chat")
             return
-        if not args:
+        try:
+            message, cipher_profile = _extract_cipher_message(parts)
+        except ValueError as exc:
+            print(f"Error: {exc}")
+            return
+        if not message:
             print("Error: message required")
             return
         if not state.current_chat:
@@ -74,9 +98,15 @@ def dispatch(cmd: str, args: str, state: CommandState) -> None:
             return
 
         try:
-            fs.chat_say(state.current_chat, user, args)
-            print("[CHAT] message sent")
-        except PermissionError as e:
+            fs.chat_say(
+                state.current_chat,
+                user,
+                message,
+                cipher_profile=cipher_profile,
+            )
+            suffix = f" with cipher {cipher_profile}" if cipher_profile else ""
+            print(f"[CHAT] message sent{suffix}")
+        except (PermissionError, FileNotFoundError, ValueError) as e:
             print(f"Error: {e}")
         return
 
@@ -119,3 +149,22 @@ def dispatch(cmd: str, args: str, state: CommandState) -> None:
         return
 
     print(f"Unknown chat command: {cmd}")
+
+
+def _extract_cipher_message(parts: list[str]) -> tuple[str, str | None]:
+    """Split message tokens from an optional --cipher profile flag."""
+
+    cipher_profile: str | None = None
+    message_parts: list[str] = []
+    index = 0
+    while index < len(parts):
+        part = parts[index]
+        if part == "--cipher":
+            if index + 1 >= len(parts):
+                raise ValueError("--cipher requires a profile")
+            cipher_profile = parts[index + 1]
+            index += 2
+            continue
+        message_parts.append(part)
+        index += 1
+    return " ".join(message_parts).strip(), cipher_profile

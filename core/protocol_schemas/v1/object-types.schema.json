@@ -127,7 +127,11 @@
         "required": ["chat", "encrypted"],
         "properties": {
           "chat": {"type": "string"},
-          "encrypted": {"$ref": "#/definitions/encryptedEnvelope"}
+          "encrypted": {"$ref": "#/definitions/encryptedEnvelope"},
+          "pml_version": {"type": "integer"},
+          "cipher_profile": {"type": "string"},
+          "cipher_version": {"type": "integer"},
+          "cipher_fingerprint": {"type": "string"}
         }
       }
     },

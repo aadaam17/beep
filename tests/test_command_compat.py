@@ -66,6 +66,24 @@ class CommandCompatibilityTests(unittest.TestCase):
         app.execute_beep_parts(["shell"])
         mock_launch_textual_shell.assert_called_once_with()
 
+    @patch("app.clear_terminal")
+    def test_execute_beep_clear_command_preserves_session_state(self, mock_clear):
+        original_state = app.state
+        shell_state = AppState()
+        shell_state.user = "alice"
+        shell_state.mode = Mode.CHAT
+        shell_state.current_chat = "bob"
+        app.state = shell_state
+        try:
+            self.assertTrue(app.execute_beep_parts(["clear"]))
+        finally:
+            app.state = original_state
+
+        mock_clear.assert_called_once_with()
+        self.assertEqual(shell_state.user, "alice")
+        self.assertEqual(shell_state.mode, Mode.CHAT)
+        self.assertEqual(shell_state.current_chat, "bob")
+
     @patch("app.run_live_mode")
     def test_execute_beep_live_command_uses_live_mode(self, mock_run_live_mode):
         app.execute_beep_parts(["fyp", "--live"])
