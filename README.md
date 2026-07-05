@@ -89,6 +89,7 @@ beep register -u alice -p pass123
 beep login -u alice -p pass123
 beep post "hello world"
 beep fyp global
+beep clear
 ```
 
 Launch the Textual interactive shell:
