@@ -474,16 +474,18 @@ beep = cli:main
 
 ## Publishing
 
-Manual upload:
-
-```bash
-python -m twine upload dist/*
-```
-
 GitHub Actions trusted publishing is configured in:
 
 ```text
 .github/workflows/publish-pypi.yml
+```
+
+See [Publishing Beep To PyPI](docs/publishing.md) for the release checklist.
+
+Manual upload is a fallback only:
+
+```bash
+python -m twine upload dist/*
 ```
 
 ## Security Notes
