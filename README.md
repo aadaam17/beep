@@ -40,7 +40,19 @@ is still evolving and should not be treated as a stable production standard.
 
 ## Installation
 
-Recommended local development install:
+Recommended install from PyPI:
+
+```bash
+pipx install beep-cli
+```
+
+Or install with pip:
+
+```bash
+python -m pip install beep-cli
+```
+
+For local development from this repository:
 
 ```bash
 python -m venv venv
@@ -48,24 +60,10 @@ python -m pip install --upgrade pip
 python -m pip install -e ".[server,ui,dev]"
 ```
 
-For a minimal package install, use the base editable install. This is useful for
-packaging checks, but day-to-day app usage should install the server and UI
-extras above.
+For a minimal editable install:
 
 ```bash
 python -m pip install -e .
-```
-
-For an isolated CLI install:
-
-```bash
-pipx install .
-```
-
-You can also install the dependency list directly:
-
-```bash
-python -m pip install -r requirements.txt
 ```
 
 ## Quick Start
